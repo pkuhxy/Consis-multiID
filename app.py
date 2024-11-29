@@ -2,6 +2,7 @@ import os
 import math
 import time
 import numpy
+import spaces
 import random
 import threading
 import gradio as gr
@@ -122,14 +123,15 @@ os.makedirs("./gradio_tmp", exist_ok=True)
 upscale_model = load_sd_upscale("model_real_esran/RealESRGAN_x4.pth", device)
 frame_interpolation_model = load_rife_model("model_rife")
 
-
-def infer(
+@spaces.GPU(duration=180)
+def generate(
     prompt: str,
     image_input: str,
     num_inference_steps: int,
     guidance_scale: float,
     seed: int = 42,
-    progress=gr.Progress(track_tqdm=True),
+    scale_status: bool = False,
+    rife_status: bool = False,
 ):
     if seed == -1:
         seed = random.randint(0, 2**8 - 1)
@@ -174,7 +176,23 @@ def infer(
     ).frames
     
     free_memory()
-    return (video_pt, seed)
+    
+    if scale_status:
+        video_pt = upscale_batch_and_concatenate(upscale_model, video_pt, device)
+    if rife_status:
+        video_pt = rife_inference_with_latents(frame_interpolation_model, video_pt)
+
+    batch_size = video_pt.shape[0]
+    batch_video_frames = []
+    for batch_idx in range(batch_size):
+        pt_image = video_pt[batch_idx]
+        pt_image = torch.stack([pt_image[i] for i in range(pt_image.shape[0])])
+
+        image_np = VaeImageProcessor.pt_to_numpy(pt_image)
+        image_pil = VaeImageProcessor.numpy_to_pil(image_np)
+        batch_video_frames.append(image_pil)
+
+    return (batch_video_frames, seed)
 
 
 def convert_to_gif(video_path):
@@ -217,7 +235,7 @@ with gr.Blocks() as demo:
                <a href="https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data">📚 Dataset</a> |
                <a href="https://github.com/PKU-YuanGroup/ConsisID">🌐 Github</a> |
                <a href="https://pku-yuangroup.github.io/ConsisID">📝 Page</a> |
-               <a href="https://arxiv.org/pdf/2408.06072">📜 arxiv </a>
+               <a href="https://huggingface.co/papers/2411.17440">📜 arxiv </a>
            </div>
            <div style="text-align: center;display: flex;justify-content: center;align-items: center;margin-top: 1em;margin-bottom: .5em;">
               <span>If the Space is too busy, duplicate it to use privately</span>
@@ -233,7 +251,7 @@ with gr.Blocks() as demo:
         with gr.Column():
             with gr.Accordion("IPT2V: Face Input", open=True):
                 image_input = gr.Image(label="Input Image (should contain clear face)")
-                prompt = gr.Textbox(label="Prompt (Less than 200 Words)", placeholder="Enter your prompt here", lines=5)
+                prompt = gr.Textbox(label="Prompt (Less than 200 Words)", placeholder="Enter your prompt here. ConsisID has high requirements for prompt quality. You can use GPT-4o to refine the input text prompt, example can be found on our github.", lines=5)
             with gr.Accordion("Examples", open=False):
                 examples_component_images = gr.Examples(
                     examples_images,
@@ -327,7 +345,8 @@ with gr.Blocks() as demo:
     </table>
         """)
 
-    def generate(
+
+    def run(
         prompt,
         image_input,
         seed_value,
@@ -335,28 +354,15 @@ with gr.Blocks() as demo:
         rife_status,
         progress=gr.Progress(track_tqdm=True)
     ):
-        latents, seed = infer(
+        batch_video_frames, seed = generate(
             prompt,
             image_input,
             num_inference_steps=50,
             guidance_scale=7.0,
             seed=seed_value,
-            progress=progress,
-        )
-        if scale_status:
-            latents = upscale_batch_and_concatenate(upscale_model, latents, device)
-        if rife_status:
-            latents = rife_inference_with_latents(frame_interpolation_model, latents)
-
-        batch_size = latents.shape[0]
-        batch_video_frames = []
-        for batch_idx in range(batch_size):
-            pt_image = latents[batch_idx]
-            pt_image = torch.stack([pt_image[i] for i in range(pt_image.shape[0])])
-
-            image_np = VaeImageProcessor.pt_to_numpy(pt_image)
-            image_pil = VaeImageProcessor.numpy_to_pil(image_np)
-            batch_video_frames.append(image_pil)
+            scale_status=scale_status,
+            rife_status=rife_status,
+        )   
 
         video_path = save_video(batch_video_frames[0], fps=math.ceil((len(batch_video_frames[0]) - 1) / 6))
         video_update = gr.update(visible=True, value=video_path)
@@ -366,11 +372,14 @@ with gr.Blocks() as demo:
 
         return video_path, video_update, gif_update, seed_update
 
+    run.zerogpu = True
+    
     generate_button.click(
-        generate,
+        fn=run,
         inputs=[prompt, image_input, seed_param, enable_scale, enable_rife],
         outputs=[video_output, download_video_button, download_gif_button, seed_text],
     )
+ 
 
 if __name__ == "__main__":
     demo.queue(max_size=15)
