@@ -51,7 +51,7 @@ This repository is the official implementation of ConsisID, a tuning-free DiT-ba
 
 * ⏳⏳⏳ Release the full codes & datasets &  weights.
 * ⏳⏳⏳ Integrate into Diffusers, Replicate.
-* `[2024.11.29]` Our [HuggingFace Demo](https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space) has encountered a weird bug and currently doesn't work properly. We are working on fixing it, stay tune.
+* `[2024.11.29]` Our [HuggingFace Demo](https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space) has encountered a weird bug and currently doesn't work properly. We are working on fixing it, stay tuned.
 * `[2024.11.29]`  🔥 The current codes and weights are our early versions, and the differences with the latest version in [arxiv](https://github.com/PKU-YuanGroup/ConsisID) can be viewed [here](https://github.com/PKU-YuanGroup/ConsisID/tree/main/util/on_going_module). And we will release the full codes in the next few days.
 * `[2024.11.28]`  Thanks [@camenduru](https://twitter.com/camenduru) for providing [Jupyter Notebook](https://colab.research.google.com/github/camenduru/ConsisID-jupyter/blob/main/ConsisID_jupyter.ipynb) and [@Jukka Seppänen](https://github.com/kijai) for providing ComfyUI Extension [ComfyUI-ConsisIDWrapper](https://github.com/kijai/ComfyUI-CogVideoXWrapper). If you find related work, please let us know.
 * `[2024.11.27]`  🔥 Due to policy restrictions, we only open-source part of the dataset. You can download it by clicking [here](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). And we will release the data processing codes in the next few days.
