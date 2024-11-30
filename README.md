@@ -12,6 +12,7 @@
 [![arXiv](https://img.shields.io/badge/Arxiv-2411.17440-b31b1b.svg?logo=arXiv)](https://arxiv.org/abs/2411.17440) 
 [![Home Page](https://img.shields.io/badge/Project-<Website>-blue.svg)](https://pku-yuangroup.github.io/ConsisID/) 
 [![Dataset](https://img.shields.io/badge/Dataset-previewData-green)](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data)
+[![zhihu](https://img.shields.io/badge/-Twitter@Adina%20Yakup%20-black?logo=twitter&logoColor=1D9BF0)](https://x.com/AdinaYakup/status/1862604191631573122)
 [![zhihu](https://img.shields.io/badge/-Twitter@camenduru%20-black?logo=twitter&logoColor=1D9BF0)](https://x.com/camenduru/status/1861957812152078701)
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow)](https://github.com/PKU-YuanGroup/ConsisID/blob/main/LICENSE) 
 
@@ -51,7 +52,7 @@ This repository is the official implementation of ConsisID, a tuning-free DiT-ba
 
 * ⏳⏳⏳ Release the full codes & datasets &  weights.
 * ⏳⏳⏳ Integrate into Diffusers, Replicate.
-* `[2024.11.29]` Our [HuggingFace Demo](https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space) has encountered a weird bug and currently doesn't work properly. We are working on fixing it, stay tuned.
+* `[2024.11.30]`  🔥 We have fixed the [huggingface demo]((https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space)), welcome to try it.
 * `[2024.11.29]`  🔥 The current codes and weights are our early versions, and the differences with the latest version in [arxiv](https://github.com/PKU-YuanGroup/ConsisID) can be viewed [here](https://github.com/PKU-YuanGroup/ConsisID/tree/main/util/on_going_module). And we will release the full codes in the next few days.
 * `[2024.11.28]`  Thanks [@camenduru](https://twitter.com/camenduru) for providing [Jupyter Notebook](https://colab.research.google.com/github/camenduru/ConsisID-jupyter/blob/main/ConsisID_jupyter.ipynb) and [@Jukka Seppänen](https://github.com/kijai) for providing ComfyUI Extension [ComfyUI-ConsisIDWrapper](https://github.com/kijai/ComfyUI-CogVideoXWrapper). If you find related work, please let us know.
 * `[2024.11.27]`  🔥 Due to policy restrictions, we only open-source part of the dataset. You can download it by clicking [here](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). And we will release the data processing codes in the next few days.
