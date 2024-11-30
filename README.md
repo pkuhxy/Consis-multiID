@@ -14,6 +14,7 @@
 [![Dataset](https://img.shields.io/badge/Dataset-previewData-green)](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data)
 [![zhihu](https://img.shields.io/badge/-Twitter@Adina%20Yakup%20-black?logo=twitter&logoColor=1D9BF0)](https://x.com/AdinaYakup/status/1862604191631573122)
 [![zhihu](https://img.shields.io/badge/-Twitter@camenduru%20-black?logo=twitter&logoColor=1D9BF0)](https://x.com/camenduru/status/1861957812152078701)
+[![zhihu](https://img.shields.io/badge/-YouTube-000000?logo=youtube&logoColor=FF0000)](https://www.youtube.com/watch?v=PhlgC-bI5SQ)
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow)](https://github.com/PKU-YuanGroup/ConsisID/blob/main/LICENSE) 
 
 </h5>
