@@ -51,9 +51,10 @@ This repository is the official implementation of ConsisID, a tuning-free DiT-ba
 
 ## 📣 News
 
-* ⏳⏳⏳ Release the full codes & datasets &  weights.
+* ⏳⏳⏳ Release the full codes & datasets & weights.
 * ⏳⏳⏳ Integrate into Diffusers, Replicate.
-* `[2024.11.30]`  🔥 We have fixed the [huggingface demo]((https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space)), welcome to try it.
+* `[2024.12.01]`  🔥 We provide text prompts for all the results in the project page. Click [here](https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/prompt.xlsx) to get and try the demo.
+* `[2024.11.30]`  🔥 We have fixed the [huggingface demo](https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space), welcome to try it.
 * `[2024.11.29]`  🔥 The current codes and weights are our early versions, and the differences with the latest version in [arxiv](https://github.com/PKU-YuanGroup/ConsisID) can be viewed [here](https://github.com/PKU-YuanGroup/ConsisID/tree/main/util/on_going_module). And we will release the full codes in the next few days.
 * `[2024.11.28]`  Thanks [@camenduru](https://twitter.com/camenduru) for providing [Jupyter Notebook](https://colab.research.google.com/github/camenduru/ConsisID-jupyter/blob/main/ConsisID_jupyter.ipynb) and [@Jukka Seppänen](https://github.com/kijai) for providing ComfyUI Extension [ComfyUI-ConsisIDWrapper](https://github.com/kijai/ComfyUI-CogVideoXWrapper). If you find related work, please let us know.
 * `[2024.11.27]`  🔥 Due to policy restrictions, we only open-source part of the dataset. You can download it by clicking [here](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). And we will release the data processing codes in the next few days.
@@ -99,7 +100,7 @@ warning: it will cost more time in inference and may also reduce the quality.
 
 ### Prompt Refiner
 
-ConsisID has high requirements for prompt quality. You can use [GPT-4o](https://chatgpt.com/) to refine the input text prompt. The example is as follows (original prompt: "a man is playing guitar.")
+ConsisID has high requirements for prompt quality. You can use [GPT-4o](https://chatgpt.com/) to refine the input text prompt, an example is as follows (original prompt: "a man is playing guitar.")
 ```bash
 a man is playing guitar.
 
@@ -107,6 +108,8 @@ Change the sentence above to something like this (add some facial changes, even 
 
 The video features a man standing next to an airplane, engaged in a conversation on his cell phone. he is wearing sunglasses and a black top, and he appears to be talking seriously. The airplane has a green stripe running along its side, and there is a large engine visible behind his. The man seems to be standing near the entrance of the airplane, possibly preparing to board or just having disembarked. The setting suggests that he might be at an airport or a private airfield. The overall atmosphere of the video is professional and focused, with the man's attire and the presence of the airplane indicating a business or travel context.
 ```
+
+Some sample prompts are available [here](https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/prompt.xlsx).
 
 ## ⚙️ Requirements and Installation
 
