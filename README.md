@@ -226,14 +226,11 @@ BestWishYsh/ConsisID-preview-Data \
 If you find our paper and codes useful in your research, please consider giving a star :star: and citation :pencil:.
 
 ```BibTeX
-@misc{ConsisID,
-      title={Identity-Preserving Text-to-Video Generation by Frequency Decomposition}, 
-      author={Shenghai Yuan and Jinfa Huang and Xianyi He and Yunyuan Ge and Yujun Shi and Liuhan Chen and Jiebo Luo and Li Yuan},
-      year={2024},
-      eprint={2411.17440},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2411.17440}, 
+@article{yuan2024identity,
+  title={Identity-Preserving Text-to-Video Generation by Frequency Decomposition},
+  author={Yuan, Shenghai and Huang, Jinfa and He, Xianyi and Ge, Yunyuan and Shi, Yujun and Chen, Liuhan and Luo, Jiebo and Yuan, Li},
+  journal={arXiv preprint arXiv:2411.17440},
+  year={2024}
 }
 ```
 
