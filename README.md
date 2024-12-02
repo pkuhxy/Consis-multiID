@@ -51,7 +51,7 @@ This repository is the official implementation of ConsisID, a tuning-free DiT-ba
 
 ## 📣 News
 
-* ⏳⏳⏳ Release the full codes & datasets & weights.
+* ⏳⏳⏳ Release the full codes & datasets & weights. (e.g., metric calculation,  data procession)
 * ⏳⏳⏳ Integrate into Diffusers, Replicate.
 * `[2024.12.01]`  🔥 We provide full text prompts corresponding to all the videos on project page. Click [here](https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/prompt.xlsx) to get and try the demo.
 * `[2024.11.30]`  🔥 We have fixed the [huggingface demo](https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space), welcome to try it.
@@ -127,13 +127,17 @@ pip install -r requirements.txt
 
 ### Download ConsisID
 
-The weights is available at [HuggingFace](https://huggingface.co/BestWishYsh/ConsisID-preview), or you can download it with the following command.
+The weights are available at [🤗HuggingFace](https://huggingface.co/BestWishYsh/ConsisID-preview) and [🟣WiseModel](https://wisemodel.cn/models/SHYuanBest/ConsisID-Preview/file), or you can download it with the following commands.
 
 ```bash
+# way 1
 # if you are in china mainland, run this first: export HF_ENDPOINT=https://hf-mirror.com
 huggingface-cli download --repo-type model \
 BestWishYsh/ConsisID-preview \
 --local-dir BestWishYsh/ConsisID-preview
+
+# way 2
+git clone https://www.wisemodel.cn/SHYuanBest/ConsisID-Preview.git
 ```
 
 Once ready, the weights will be organized in this format:
