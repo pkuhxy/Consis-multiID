@@ -137,6 +137,7 @@ BestWishYsh/ConsisID-preview \
 --local-dir BestWishYsh/ConsisID-preview
 
 # way 2
+git lfs install
 git clone https://www.wisemodel.cn/SHYuanBest/ConsisID-Preview.git
 ```
 
