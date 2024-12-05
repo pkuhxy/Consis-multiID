@@ -227,8 +227,11 @@ examples_images = [
 
 with gr.Blocks() as demo:
     gr.Markdown("""
+           <div style='display: flex; align-items: center; justify-content: center; text-align: center;'>
+                <img src='https://www.pnglog.com/bwrbe1.png' style='width: 150px; height: auto; margin-right: 10px;' />
+           </div>
            <div style="text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px;">
-               ConsisID Space🤗
+               ConsisID-Preview Space
            </div>
            <div style="text-align: center;">
                <a href="https://huggingface.co/BestWishYsh/ConsisID">🤗 Model Hub</a> |
@@ -244,13 +247,13 @@ with gr.Blocks() as demo:
             "></a>
            </div>
            <div style="text-align: center; font-size: 15px; font-weight: bold; color: red; margin-bottom: 20px;">
-            ⚠️ This demo is for academic research and experiential use only. 
+            ⚠️ This demo is for academic research and experiential use only. The current codes and weights are our early versions, and we will release the full codes in the next few days.
             </div>
            """)
     with gr.Row():
         with gr.Column():
             with gr.Accordion("IPT2V: Face Input", open=True):
-                image_input = gr.Image(label="Input Image (should contain clear face)")
+                image_input = gr.Image(label="Input Image (should contain clear face, preferably half-body or full-body image)")
                 prompt = gr.Textbox(label="Prompt (Less than 200 Words)", placeholder="Enter your prompt here. ConsisID has high requirements for prompt quality. You can use GPT-4o to refine the input text prompt, example can be found on our github.", lines=5)
             with gr.Accordion("Examples", open=False):
                 examples_component_images = gr.Examples(
