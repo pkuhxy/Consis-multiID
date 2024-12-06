@@ -147,7 +147,7 @@ git clone https://www.wisemodel.cn/SHYuanBest/ConsisID-Preview.git
 Once ready, the weights will be organized in this format:
 
 ```
-📦 models/
+📦 ckpts/
 ├── 📂 face_encoder/
 ├── 📂 scheduler/
 ├── 📂 text_encoder/

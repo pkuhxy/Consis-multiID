@@ -31,17 +31,21 @@ from models.eva_clip import create_model_and_transforms
 from models.eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 from models.eva_clip.utils_qformer import resize_numpy_image_long
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
-hf_hub_download(repo_id="ai-forever/Real-ESRGAN", filename="RealESRGAN_x4.pth", local_dir="model_real_esran")
-snapshot_download(repo_id="AlexWortega/RIFE", local_dir="model_rife")
-snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir="BestWishYsh/ConsisID-preview")
+model_path = "ckpts"
 
-model_path = "BestWishYsh/ConsisID-preview"
 lora_path = None
 lora_rank = 128
 dtype = torch.bfloat16
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
+if not os.path.exists(model_path):
+    hf_hub_download(repo_id="ai-forever/Real-ESRGAN", filename="RealESRGAN_x4.pth", local_dir=f"{model_path}/model_real_esran")
+    snapshot_download(repo_id="AlexWortega/RIFE", local_dir=f"{model_path}/model_rife")
+    snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir=f"{model_path}")
+else:
+    print(f"Model already exists in {model_path}, skipping download.")
+    
 if os.path.exists(os.path.join(model_path, "transformer_ema")):
     subfolder = "transformer_ema"
 else:

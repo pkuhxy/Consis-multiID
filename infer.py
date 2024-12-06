@@ -13,6 +13,7 @@ from facexlib.parsing import init_parsing_model
 from facexlib.utils.face_restoration_helper import FaceRestoreHelper
 from diffusers.training_utils import free_memory
 from diffusers.utils import export_to_video, load_image, load_video
+from huggingface_hub import hf_hub_download, snapshot_download
 
 from models.utils import process_face_embeddings
 from models.transformer_consisid import ConsisIDTransformer3DModel
@@ -185,7 +186,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate a video from a text prompt using ConsisID")
     
     # ckpt arguments
-    parser.add_argument("--model_path", type=str, default="BestWishYsh/ConsisID-preview", help="The path of the pre-trained model to be used")
+    parser.add_argument("--model_path", type=str, default="ckpts", help="The path of the pre-trained model to be used")
     parser.add_argument("--lora_path", type=str, default=None, help="The path of the LoRA weights to be used")
     parser.add_argument("--lora_rank", type=int, default=128, help="The rank of the LoRA weights")
     
@@ -204,7 +205,12 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42, help="The seed for reproducibility")
     
     args = parser.parse_args()
-
+    
+    if not os.path.exists(args.model_path):
+        snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir=args.model_path)
+    else:
+        print(f"Model already exists in {args.model_path}, skipping download.")
+    
     generate_video(
         prompt=args.prompt,
         model_path=args.model_path,
