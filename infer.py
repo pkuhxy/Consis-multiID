@@ -207,6 +207,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if not os.path.exists(args.model_path):
+        print(f"Model not found, downloading from Hugging Face...")
         snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir=args.model_path)
     else:
         print(f"Model already exists in {args.model_path}, skipping download.")

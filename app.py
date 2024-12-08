@@ -40,6 +40,7 @@ dtype = torch.bfloat16
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 if not os.path.exists(model_path) or not os.path.exists(f"{model_path}/model_real_esran") or not os.path.exists(f"{model_path}/model_rife"):
+    print(f"Model not found, downloading from Hugging Face...")
     hf_hub_download(repo_id="ai-forever/Real-ESRGAN", filename="RealESRGAN_x4.pth", local_dir=f"{model_path}/model_real_esran")
     snapshot_download(repo_id="AlexWortega/RIFE", local_dir=f"{model_path}/model_rife")
     snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir=f"{model_path}")

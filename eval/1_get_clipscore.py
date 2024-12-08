@@ -34,6 +34,7 @@ if __name__ == "__main__":
     model_path = "../ckpts/openai/clip-vit-base-patch32"
 
     if not os.path.exists(model_path):
+        print(f"Model not found, downloading from Hugging Face...")
         snapshot_download(repo_id="openai/clip-vit-base-patch32", local_dir=model_path)
     else:
         print(f"Model already exists in {model_path}, skipping download.")
