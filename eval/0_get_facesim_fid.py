@@ -194,9 +194,11 @@ def main():
     video_path = "path/your.mp4"
     image_path = "path/your.png"
     results_file_path = "facesim_fid_score.txt"
-    
-    if not os.path.exists(model_path):
-        snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir=model_path)
+
+    model_file = f"{model_path}/{face_encoder}/glint360k_curricular_face_r101_backbone.bin"
+    if not os.path.exists(model_file):
+        print(f"Model not found, downloading from Hugging Face...")
+        hf_hub_download(repo_id="BestWishYsh/ConsisID-preview", filename="face_encoder/glint360k_curricular_face_r101_backbone.bin", local_dir=model_path)
     else:
         print(f"Model already exists in {model_path}, skipping download.")
 
