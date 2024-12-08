@@ -137,7 +137,7 @@ The weights are available at [🤗HuggingFace](https://huggingface.co/BestWishYs
 # if you are in china mainland, run this first: export HF_ENDPOINT=https://hf-mirror.com
 huggingface-cli download --repo-type model \
 BestWishYsh/ConsisID-preview \
---local-dir BestWishYsh/ConsisID-preview
+--local-dir ckpts
 
 # way 2
 git lfs install
