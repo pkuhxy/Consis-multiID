@@ -162,7 +162,7 @@ Once ready, the weights will be organized in this format:
 
 ## 🗝️ Training
 
-#### Data preprocessing
+### Data preprocessing
 
 Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/data_preprocess) for how to obtain the [training data](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data) required by ConsisID. If you want to train a text to image and video generation model. You need to arrange all the dataset in this [format](https://github.com/PKU-YuanGroup/ConsisID/tree/main/asserts/demo_train_data/dataname):
 
@@ -183,9 +183,9 @@ Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main
 ├── 📄 total_train_data.txt
 ```
 
-#### Video DiT training
+### Video DiT training
 
-Setting hyperparameters
+First, setting hyperparameters:
 
 - environment (e.g., cuda): [deepspeed_configs](https://github.com/PKU-YuanGroup/ConsisID/tree/main/util/deepspeed_configs)
 - training arguments (e.g., batchsize): [train_single_rank.sh](https://github.com/PKU-YuanGroup/ConsisID/blob/main/train_single_rank.sh) or [train_multi_rank.sh](https://github.com/PKU-YuanGroup/ConsisID/blob/main/train_multi_rank.sh)
