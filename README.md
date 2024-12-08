@@ -130,7 +130,7 @@ pip install -r requirements.txt
 
 ### Download ConsisID
 
-The weights are available at [🤗HuggingFace](https://huggingface.co/BestWishYsh/ConsisID-preview) and [🟣WiseModel](https://wisemodel.cn/models/SHYuanBest/ConsisID-Preview/file), or you can download it with the following commands.
+The weights are available at [🤗HuggingFace](https://huggingface.co/BestWishYsh/ConsisID-preview) and [🟣WiseModel](https://wisemodel.cn/models/SHYuanBest/ConsisID-Preview/file), and will be automatically downloaded when runing `app.py` and `infer.py`, or you can download it with the following commands.
 
 ```bash
 # way 1
