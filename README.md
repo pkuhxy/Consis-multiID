@@ -149,6 +149,7 @@ Once ready, the weights will be organized in this format:
 
 ```
 📦 ckpts/
+├── 📂 data_process/
 ├── 📂 face_encoder/
 ├── 📂 scheduler/
 ├── 📂 text_encoder/
