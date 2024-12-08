@@ -30,6 +30,7 @@ Once ready, the weights will be organized in this format:
 📦 ConsisiID/
 ├── 📂 ckpts/
 │   ├── 📂 data_process/
+│       ├── 📂 Qwen2-VL-7B-Instruct
 │       ├── 📄 step1_yolov8_face.pt
 │       ├── 📄 step1_yolov8_head.pt
 │       ├── 📄 yolov8l-worldv2.pt
