@@ -124,8 +124,8 @@ pipe.to(device)
 os.makedirs("./output", exist_ok=True)
 os.makedirs("./gradio_tmp", exist_ok=True)
 
-upscale_model = load_sd_upscale("model_real_esran/RealESRGAN_x4.pth", device)
-frame_interpolation_model = load_rife_model("model_rife")
+upscale_model = load_sd_upscale(f"{model_path}/model_real_esran/RealESRGAN_x4.pth", device)
+frame_interpolation_model = load_rife_model(f"{model_path}/model_rife")
 
 @spaces.GPU(duration=180)
 def generate(
