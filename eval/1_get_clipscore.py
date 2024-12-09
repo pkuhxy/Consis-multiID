@@ -1,5 +1,5 @@
-import cv2
 import os
+import cv2
 from huggingface_hub import snapshot_download
 from transformers import CLIPProcessor, CLIPModel
 
@@ -30,11 +30,12 @@ def compute_clip_score(video_path, model, processor, prompt, device, num_frames=
     return average_score
 
 
-if __name__ == "__main__":
-    model_path = "../ckpts/openai/clip-vit-base-patch32"
+def main():
     device = "cuda"
-    video_file_path = "path/your.mp4"
+    model_path = "../ckpts/data_process/clip-vit-base-patch32"
     prompt = "your prompt"
+    video_file_path = "path/your.mp4"
+    results_file_path = "facesim_fid_score.txt"
     
     if not os.path.exists(model_path):
         print(f"Model not found, downloading from Hugging Face...")
@@ -48,4 +49,13 @@ if __name__ == "__main__":
     
     clip_score = compute_clip_score(video_file_path, clip_model, clip_processor, prompt, device, num_frames=16)
 
+    # Write results to file
+    with open(results_file_path, 'w') as f:
+        f.write(f"clip score: {clip_score}\n")
+
+    # Print results
     print(f"clip score: {clip_score}")
+
+
+if __name__ == "__main__":
+    main()

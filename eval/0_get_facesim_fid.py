@@ -2,9 +2,7 @@ import os
 import sys
 import cv2
 import numpy
-import argparse
 import numpy as np
-from tqdm import tqdm
 from PIL import Image
 
 from insightface.app import FaceAnalysis

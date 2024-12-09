@@ -55,6 +55,7 @@ This repository is the official implementation of ConsisID, a tuning-free DiT-ba
 
 * ⏳⏳⏳ Release the full codes & datasets & weights. (e.g., metric calculation)
 * ⏳⏳⏳ Integrate into Diffusers.
+* `[2024.12.09]`  🔥We release the [test set](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data/tree/main/eval) and [metric calculation code](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) used in the paper, now your can measure the metrics on your own machine. Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) for more details.
 * `[2024.12.08]`  🔥The code for <u>data preprocessing</u> is out, which is used to obtain the [training data](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data) required by ConsisID. Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/data_preprocess) for more details.
 * `[2024.12.04]`  Thanks [@shizi](https://www.bilibili.com/video/BV1v3iUY4EeQ/?vd_source=ae3f2652765c02e41cdd698b311989e3) for providing [🤗Windows-ConsisID](https://huggingface.co/pkuhexianyi/ConsisID-Windows/tree/main) and [🟣Windows-ConsisID](https://www.wisemodel.cn/models/PkuHexianyi/ConsisID-Windows/file), which make it easy to run ConsisID on Windows.
 * `[2024.12.01]`  🔥 We provide full text prompts corresponding to all the videos on project page. Click [here](https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/prompt.xlsx) to get and try the demo.
@@ -136,11 +137,16 @@ The weights are available at [🤗HuggingFace](https://huggingface.co/BestWishYs
 ```bash
 # way 1
 # if you are in china mainland, run this first: export HF_ENDPOINT=https://hf-mirror.com
+cd util
+python download_weights.py
+
+# way 2
+# if you are in china mainland, run this first: export HF_ENDPOINT=https://hf-mirror.com
 huggingface-cli download --repo-type model \
 BestWishYsh/ConsisID-preview \
 --local-dir ckpts
 
-# way 2
+# way 3
 git lfs install
 git clone https://www.wisemodel.cn/SHYuanBest/ConsisID-Preview.git
 ```
@@ -199,7 +205,7 @@ bash train_single_rank.sh
 bash train_multi_rank.sh
 ```
 
-## 🙌Community Contributions
+## 🙌 Friendly Links
 
 We found some plugins created by community developers. Thanks for their efforts: 
 
@@ -222,14 +228,11 @@ BestWishYsh/ConsisID-preview-Data \
 
 ## 🛠️ Evaluation 
 
-```bash
-Coming Soon!
-```
+We release the data used for evaluation in [ConsisID](https://huggingface.co/papers/2411.17440). The data is available at [HuggingFace](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) for how to evaluate customized model.
 
 ## 👍 Acknowledgement
 
 * This project wouldn't be possible without the following open-sourced repositories: [Open-Sora Plan](https://github.com/PKU-YuanGroup/Open-Sora-Plan), [CogVideoX](https://github.com/THUDM/CogVideo), [EasyAnimate](https://github.com/aigc-apps/EasyAnimate), [CogVideoX-Fun](https://github.com/aigc-apps/CogVideoX-Fun).
-
 
 ## 🔒 License
 
@@ -256,4 +259,3 @@ If you find our paper and codes useful in your research, please consider giving 
   <img src="https://contrib.rocks/image?repo=PKU-YuanGroup/ConsisID&anon=true" />
 
 </a>
-

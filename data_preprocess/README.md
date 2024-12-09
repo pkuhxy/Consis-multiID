@@ -21,7 +21,7 @@ The weights will be automatically downloaded, or you can download it with the fo
 
 ```bash
 cd util
-python download_weights.py
+python download_weights_data.py
 ```
 
 Once ready, the weights will be organized in this format:
