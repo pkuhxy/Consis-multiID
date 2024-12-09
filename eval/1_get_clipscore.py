@@ -32,16 +32,15 @@ def compute_clip_score(video_path, model, processor, prompt, device, num_frames=
 
 if __name__ == "__main__":
     model_path = "../ckpts/openai/clip-vit-base-patch32"
-
+    device = "cuda"
+    video_file_path = "path/your.mp4"
+    prompt = "your prompt"
+    
     if not os.path.exists(model_path):
         print(f"Model not found, downloading from Hugging Face...")
         snapshot_download(repo_id="openai/clip-vit-base-patch32", local_dir=model_path)
     else:
         print(f"Model already exists in {model_path}, skipping download.")
-
-    device = "cuda"
-    video_file_path = "path/your.mp4"
-    prompt = "your prompt"
 
     clip_model = CLIPModel.from_pretrained(model_path)
     clip_processor = CLIPProcessor.from_pretrained(model_path)
