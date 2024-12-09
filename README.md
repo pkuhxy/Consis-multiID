@@ -228,7 +228,7 @@ BestWishYsh/ConsisID-preview-Data \
 
 ## 🛠️ Evaluation 
 
-We release the data used for evaluation in [ConsisID](https://huggingface.co/papers/2411.17440). The data is available at [HuggingFace](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) for how to evaluate customized model.
+We release the data used for evaluation in [ConsisID](https://huggingface.co/papers/2411.17440), which is available at [HuggingFace](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) for how to evaluate customized model.
 
 ## 👍 Acknowledgement
 
