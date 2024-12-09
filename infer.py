@@ -28,6 +28,7 @@ def get_random_seed():
 def generate_video(
     prompt: str,
     model_path: str,
+    negative_prompt: str = None,
     lora_path: str = None,
     lora_rank: int = 128,
     output_path: str = "./output",
@@ -43,6 +44,7 @@ def generate_video(
 
     Parameters:
     - prompt (str): The description of the video to be generated.
+    - negative_prompt (str): The description of the negative prompt.
     - model_path (str): The path of the pre-trained model to be used.
     - lora_path (str): The path of the LoRA weights to be used.
     - lora_rank (int): The rank of the LoRA weights.
@@ -159,11 +161,14 @@ def generate_video(
     image = ImageOps.exif_transpose(Image.fromarray(tensor))
 
     prompt = prompt.strip('"')
-    
+    if negative_prompt:
+        negative_prompt = negative_prompt.strip('"')
+
     generator = torch.Generator(device).manual_seed(seed) if seed else None
     
     video_generate = pipe(
         prompt=prompt,
+        negative_prompt=negative_prompt,
         image=image,
         num_videos_per_prompt=num_videos_per_prompt,
         num_inference_steps=num_inference_steps,
@@ -193,7 +198,8 @@ if __name__ == "__main__":
     # input arguments
     parser.add_argument("--img_file_path", type=str, default="asserts/1.png")
     parser.add_argument("--prompt", type=str, default="A woman adorned with a delicate flower crown, is standing amidst a field of gently swaying wildflowers. Her eyes sparkle with a serene gaze, and a faint smile graces her lips, suggesting a moment of peaceful contentment. The shot is framed from the waist up, highlighting the gentle breeze lightly tousling her hair. The background reveals an expansive meadow under a bright blue sky, capturing the tranquility of a sunny afternoon.")
-    
+    parser.add_argument("--negative_prompt", type=str, default=None)
+
     # output arguments
     parser.add_argument("--output_path", type=str, default="./output", help="The path where the generated video will be saved")
     
@@ -214,6 +220,7 @@ if __name__ == "__main__":
     
     generate_video(
         prompt=args.prompt,
+        negative_prompt=args.negative_prompt,
         model_path=args.model_path,
         lora_path=args.lora_path,
         lora_rank=args.lora_rank,

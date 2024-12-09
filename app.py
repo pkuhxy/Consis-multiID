@@ -135,6 +135,7 @@ def generate(
     num_inference_steps: int,
     guidance_scale: float,
     seed: int = 42,
+    negative_prompt: str = None,
     scale_status: bool = False,
     rife_status: bool = False,
 ):
@@ -162,11 +163,14 @@ def generate(
     image  = ImageOps.exif_transpose(Image.fromarray(tensor))
 
     prompt = prompt.strip('"')
+    if negative_prompt:
+        negative_prompt = negative_prompt.strip('"')
     
     generator = torch.Generator(device).manual_seed(seed) if seed else None
     
     video_pt = pipe(
         prompt=prompt,
+        negative_prompt=negative_prompt,
         image=image,
         num_videos_per_prompt=1,
         num_inference_steps=num_inference_steps,
@@ -260,6 +264,7 @@ with gr.Blocks() as demo:
             with gr.Accordion("IPT2V: Face Input", open=True):
                 image_input = gr.Image(label="Input Image (should contain clear face, preferably half-body or full-body image)")
                 prompt = gr.Textbox(label="Prompt (Less than 200 Words)", placeholder="Enter your prompt here. ConsisID has high requirements for prompt quality. You can use GPT-4o to refine the input text prompt, example can be found on our github.", lines=5)
+                negative_prompt = gr.Textbox(label="Negative Prompt (Default is None)", placeholder="Enter your negative prompt here. Default is None", lines=1)
             with gr.Accordion("Examples", open=False):
                 examples_component_images = gr.Examples(
                     examples_images,
@@ -356,6 +361,7 @@ with gr.Blocks() as demo:
 
     def run(
         prompt,
+        negative_prompt,
         image_input,
         seed_value,
         scale_status,
@@ -365,6 +371,7 @@ with gr.Blocks() as demo:
         batch_video_frames, seed = generate(
             prompt,
             image_input,
+            negative_prompt=negative_prompt,
             num_inference_steps=50,
             guidance_scale=7.0,
             seed=seed_value,
@@ -384,7 +391,7 @@ with gr.Blocks() as demo:
     
     generate_button.click(
         fn=run,
-        inputs=[prompt, image_input, seed_param, enable_scale, enable_rife],
+        inputs=[prompt, negative_prompt, image_input, seed_param, enable_scale, enable_rife],
         outputs=[video_output, download_video_button, download_gif_button, seed_text],
     )
  
