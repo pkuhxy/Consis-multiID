@@ -16,7 +16,6 @@ from diffusers.training_utils import free_memory
 from util.utils import *
 from util.rife_model import load_rife_model, rife_inference_with_latents
 from models.utils import process_face_embeddings_infer, prepare_face_models
-from models.transformer_consisid import ConsisIDTransformer3DModel
 from models.pipeline_consisid import ConsisIDPipeline
 
 
@@ -36,20 +35,13 @@ if not os.path.exists(model_path) or not os.path.exists(f"{model_path}/model_rea
 else:
     print(f"Model already exists in {model_path}, skipping download.")
     
-if os.path.exists(os.path.join(model_path, "transformer_ema")):
-    subfolder = "transformer_ema"
-else:
-    subfolder = "transformer"
-
 
 # 1. Prepare all the face models
-    face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std = prepare_face_models(model_path, device, dtype)
+face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std = prepare_face_models(model_path, device, dtype)
 
 
 # 2. Load Pipeline.
-transformer = ConsisIDTransformer3DModel.from_pretrained_cus(model_path, subfolder=subfolder)
-transformer.to(device, dtype=dtype)
-pipe = ConsisIDPipeline.from_pretrained(model_path, transformer=transformer, torch_dtype=dtype)
+pipe = ConsisIDPipeline.from_pretrained(model_path, torch_dtype=dtype)
 
 # If you're using with lora, add this code
 if lora_path:
@@ -58,10 +50,6 @@ if lora_path:
 
 
 # 3. Move to device.
-face_helper_1.face_det.to(device)
-face_helper_1.face_parse.to(device)
-face_clip_model.to(device, dtype=dtype)
-transformer.to(device, dtype=dtype)
 pipe.to(device)
 # Save Memory. Turn on if you don't have multiple GPUs or enough GPU memory(such as H100) and it will cost more time in inference, it may also reduce the quality
 pipe.enable_model_cpu_offload()
@@ -96,7 +84,7 @@ def generate(
                                                                             face_main_model, device, dtype, 
                                                                             image_input, is_align_face=True)
 
-    is_kps = getattr(transformer.config, 'is_kps', False)
+    is_kps = getattr(pipe.transformer.config, 'is_kps', False)
     kps_cond = face_kps if is_kps else None
 
     prompt = prompt.strip('"')

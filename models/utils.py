@@ -359,5 +359,8 @@ def prepare_face_models(model_path, device, dtype):
     face_helper_1.face_det.eval()
     face_helper_1.face_parse.eval()
     face_clip_model.eval()
-
+    face_helper_1.face_det.to(device)
+    face_helper_1.face_parse.to(device)
+    face_clip_model.to(device, dtype=dtype)
+    
     return face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std
