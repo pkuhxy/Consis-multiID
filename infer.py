@@ -53,7 +53,7 @@ def generate_video(
     - is_upscale (bool): Whether to apply super-resolution (video upscaling) to the generated video. Default is False.
     - is_frame_interpolation (bool): Whether to perform frame interpolation to increase the frame rate. Default is False.
     """
-    # 0. pre config
+    # 0. Pre config
     device = "cuda"
 
     if not os.path.exists(output_path): 
@@ -68,6 +68,7 @@ def generate_video(
     # 1. Prepare all the face models
     face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std = prepare_face_models(model_path, device, dtype)
 
+
     # 2. Load Pipeline.
     transformer = ConsisIDTransformer3DModel.from_pretrained_cus(model_path, subfolder=subfolder)
     pipe = ConsisIDPipeline.from_pretrained(model_path, transformer=transformer, torch_dtype=dtype)
@@ -77,15 +78,16 @@ def generate_video(
         pipe.load_lora_weights(lora_path, weight_name="pytorch_lora_weights.safetensors", adapter_name="test_1")
         pipe.fuse_lora(lora_scale=1 / lora_rank)
 
-    # 2. Move to device.
+
+    # 3. Move to device.
     face_helper_1.face_det.to(device)
     face_helper_1.face_parse.to(device)
     face_clip_model.to(device, dtype=dtype)
     transformer.to(device, dtype=dtype)
     pipe.to(device)
     # Save Memory. Turn on if you don't have multiple GPUs or enough GPU memory(such as H100) and it will cost more time in inference, it may also reduce the quality
-    # pipe.enable_model_cpu_offload()
-    # pipe.enable_sequential_cpu_offload()
+    pipe.enable_model_cpu_offload()
+    pipe.enable_sequential_cpu_offload()
     # pipe.vae.enable_slicing()
     # pipe.vae.enable_tiling()
     

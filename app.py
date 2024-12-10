@@ -9,26 +9,18 @@ from moviepy import VideoFileClip
 from datetime import datetime, timedelta
 from huggingface_hub import hf_hub_download, snapshot_download
 
-import insightface
-from insightface.app import FaceAnalysis
-from facexlib.parsing import init_parsing_model
-from facexlib.utils.face_restoration_helper import FaceRestoreHelper
-
 import torch
-from diffusers.utils import load_image
 from diffusers.image_processor import VaeImageProcessor
 from diffusers.training_utils import free_memory
 
 from util.utils import *
 from util.rife_model import load_rife_model, rife_inference_with_latents
-from models.utils import process_face_embeddings_infer
+from models.utils import process_face_embeddings_infer, prepare_face_models
 from models.transformer_consisid import ConsisIDTransformer3DModel
 from models.pipeline_consisid import ConsisIDPipeline
-from models.eva_clip import create_model_and_transforms
-from models.eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
 
 
-# 0. pre config
+# 0. Pre config
 model_path = "ckpts"
 
 lora_path = None
@@ -50,46 +42,8 @@ else:
     subfolder = "transformer"
 
 
-# 1. prepare all the face models
-# get helper model
-face_helper_1 = FaceRestoreHelper(
-    upscale_factor=1,
-    face_size=512,
-    crop_ratio=(1, 1),
-    det_model='retinaface_resnet50',
-    save_ext='png',
-    device=device,
-    model_rootpath=os.path.join(model_path, "face_encoder")
-)
-face_helper_1.face_parse = None
-face_helper_1.face_parse = init_parsing_model(model_name='bisenet', device=device, model_rootpath=os.path.join(model_path, "face_encoder"))
-face_helper_2 = insightface.model_zoo.get_model(f'{model_path}/face_encoder/models/antelopev2/glintr100.onnx', providers=['CUDAExecutionProvider'])
-face_helper_2.prepare(ctx_id=0)
-
-# get local facial extractor part 1
-model, _, _ = create_model_and_transforms('EVA02-CLIP-L-14-336', os.path.join(model_path, "face_encoder", "EVA02_CLIP_L_336_psz14_s6B.pt"), force_custom_clip=True)
-face_clip_model = model.visual
-eva_transform_mean = getattr(face_clip_model, 'image_mean', OPENAI_DATASET_MEAN)
-eva_transform_std = getattr(face_clip_model, 'image_std', OPENAI_DATASET_STD)
-if not isinstance(eva_transform_mean, (list, tuple)):
-    eva_transform_mean = (eva_transform_mean,) * 3
-if not isinstance(eva_transform_std, (list, tuple)):
-    eva_transform_std = (eva_transform_std,) * 3
-eva_transform_mean = eva_transform_mean
-eva_transform_std = eva_transform_std
-
-# get local facial extractor part 2
-face_main_model = FaceAnalysis(name='antelopev2', root=os.path.join(model_path, "face_encoder"), providers=['CUDAExecutionProvider'])
-face_main_model.prepare(ctx_id=0, det_size=(640, 640))
-
-# move face models to device
-face_helper_1.face_det.eval()
-face_helper_1.face_parse.eval()
-face_clip_model.eval()
-face_clip_model.to(device, dtype=dtype)
-face_helper_1.face_det.to(device)
-face_helper_1.face_parse.to(device)
-free_memory()
+# 1. Prepare all the face models
+    face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std = prepare_face_models(model_path, device, dtype)
 
 
 # 2. Load Pipeline.
@@ -102,10 +56,16 @@ if lora_path:
     pipe.load_lora_weights(lora_path, weight_name="pytorch_lora_weights.safetensors", adapter_name="test_1")
     pipe.fuse_lora(lora_scale=1 / lora_rank)
 
+
+# 3. Move to device.
+face_helper_1.face_det.to(device)
+face_helper_1.face_parse.to(device)
+face_clip_model.to(device, dtype=dtype)
+transformer.to(device, dtype=dtype)
 pipe.to(device)
 # Save Memory. Turn on if you don't have multiple GPUs or enough GPU memory(such as H100) and it will cost more time in inference, it may also reduce the quality
-# pipe.enable_model_cpu_offload()
-# pipe.enable_sequential_cpu_offload()
+pipe.enable_model_cpu_offload()
+pipe.enable_sequential_cpu_offload()
 # pipe.vae.enable_slicing()
 # pipe.vae.enable_tiling()
 
@@ -130,7 +90,7 @@ def generate(
     if seed == -1:
         seed = random.randint(0, 2**8 - 1)
 
-    # 4. Process model input
+    # 4. Prepare model input
     id_cond, id_vit_hidden, image, face_kps = process_face_embeddings_infer(face_helper_1, face_clip_model, face_helper_2, 
                                                                             eva_transform_mean, eva_transform_std, 
                                                                             face_main_model, device, dtype, 
