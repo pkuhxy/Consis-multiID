@@ -4,7 +4,18 @@ import torch.nn as nn
 
 
 # FFN
-def FeedForward(dim, mult=4):
+def ConsisIDFeedForward(dim, mult=4):
+    """
+    Creates a consistent ID feedforward block consisting of layer normalization,
+    two linear layers, and a GELU activation.
+
+    Args:
+        dim (int): The input dimension of the tensor.
+        mult (int, optional): Multiplier for the inner dimension. Default is 4.
+
+    Returns:
+        nn.Sequential: A sequence of layers comprising LayerNorm, Linear layers, and GELU.
+    """
     inner_dim = int(dim * mult)
     return nn.Sequential(
         nn.LayerNorm(dim),
@@ -15,20 +26,41 @@ def FeedForward(dim, mult=4):
 
 
 def reshape_tensor(x, heads):
+    """
+    Reshapes the input tensor for multi-head attention.
+
+    Args:
+        x (torch.Tensor): The input tensor with shape (batch_size, length, width).
+        heads (int): The number of attention heads.
+
+    Returns:
+        torch.Tensor: The reshaped tensor, with shape (batch_size, heads, length, width).
+    """
     bs, length, width = x.shape
-    # (bs, length, width) --> (bs, length, n_heads, dim_per_head)
     x = x.view(bs, length, heads, -1)
-    # (bs, length, n_heads, dim_per_head) --> (bs, n_heads, length, dim_per_head)
     x = x.transpose(1, 2)
-    # (bs, n_heads, length, dim_per_head) --> (bs*n_heads, length, dim_per_head)
     x = x.reshape(bs, heads, length, -1)
     return x
 
 
 class PerceiverAttention(nn.Module):
+    """
+    Implements the Perceiver attention mechanism with multi-head attention.
+    
+    This layer takes two inputs: 'x' (image features) and 'latents' (latent features),
+    applying multi-head attention to both and producing an output tensor with the same 
+    dimension as the input tensor 'x'.
+
+    Args:
+        dim (int): The input dimension.
+        dim_head (int, optional): The dimension of each attention head. Default is 64.
+        heads (int, optional): The number of attention heads. Default is 8.
+        kv_dim (int, optional): The key-value dimension. If None, `dim` is used for both keys and values.
+    """
+
     def __init__(self, *, dim, dim_head=64, heads=8, kv_dim=None):
         super().__init__()
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
         self.dim_head = dim_head
         self.heads = heads
         inner_dim = dim_head * heads
@@ -42,21 +74,27 @@ class PerceiverAttention(nn.Module):
 
     def forward(self, x, latents):
         """
+        Forward pass for Perceiver attention.
+
         Args:
-            x (torch.Tensor): image features
-                shape (b, n1, D)
-            latent (torch.Tensor): latent features
-                shape (b, n2, D)
+            x (torch.Tensor): Image features tensor with shape (batch_size, num_pixels, D).
+            latents (torch.Tensor): Latent features tensor with shape (batch_size, num_latents, D).
+
+        Returns:
+            torch.Tensor: Output tensor after applying attention and transformation.
         """
+        # Apply normalization
         x = self.norm1(x)
         latents = self.norm2(latents)
 
-        b, seq_len, _ = latents.shape
+        b, seq_len, _ = latents.shape  # Get batch size and sequence length
 
+        # Compute query, key, and value matrices
         q = self.to_q(latents)
         kv_input = torch.cat((x, latents), dim=-2)
         k, v = self.to_kv(kv_input).chunk(2, dim=-1)
 
+        # Reshape the tensors for multi-head attention
         q = reshape_tensor(q, self.heads)
         k = reshape_tensor(k, self.heads)
         v = reshape_tensor(v, self.heads)
@@ -67,6 +105,7 @@ class PerceiverAttention(nn.Module):
         weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
         out = weight @ v
 
+        # Reshape and return the final output
         out = out.permute(0, 2, 1, 3).reshape(b, seq_len, -1)
 
         return self.to_out(out)
@@ -74,22 +113,22 @@ class PerceiverAttention(nn.Module):
 
 class LocalFacialExtractor(nn.Module):
     def __init__(
-            self,
-            dim=1024,
-            depth=10,
-            dim_head=64,
-            heads=16,
-            num_id_token=5,
-            num_queries=32,
-            output_dim=2048,
-            ff_mult=4,
+        self,
+        dim=1024,
+        depth=10,
+        dim_head=64,
+        heads=16,
+        num_id_token=5,
+        num_queries=32,
+        output_dim=2048,
+        ff_mult=4,
     ):
         """
         Initializes the LocalFacialExtractor class.
 
         Parameters:
         - dim (int): The dimensionality of latent features.
-        - depth (int): Total number of PerceiverAttention and FeedForward layers.
+        - depth (int): Total number of PerceiverAttention and ConsisIDFeedForward layers.
         - dim_head (int): Dimensionality of each attention head.
         - heads (int): Number of attention heads.
         - num_id_token (int): Number of tokens used for identity features.
@@ -105,21 +144,21 @@ class LocalFacialExtractor(nn.Module):
         self.num_queries = num_queries
         assert depth % 5 == 0
         self.depth = depth // 5
-        scale = dim ** -0.5
+        scale = dim**-0.5
 
         # Learnable latent query embeddings
         self.latents = nn.Parameter(torch.randn(1, num_queries, dim) * scale)
         # Projection layer to map the latent output to the desired dimension
         self.proj_out = nn.Parameter(scale * torch.randn(dim, output_dim))
 
-        # Attention and FeedForward layer stack
+        # Attention and ConsisIDFeedForward layer stack
         self.layers = nn.ModuleList([])
         for _ in range(depth):
             self.layers.append(
                 nn.ModuleList(
                     [
                         PerceiverAttention(dim=dim, dim_head=dim_head, heads=heads),  # Perceiver Attention layer
-                        FeedForward(dim=dim, mult=ff_mult),  # FeedForward layer
+                        ConsisIDFeedForward(dim=dim, mult=ff_mult),  # ConsisIDFeedForward layer
                     ]
                 )
             )
@@ -128,7 +167,7 @@ class LocalFacialExtractor(nn.Module):
         for i in range(5):
             setattr(
                 self,
-                f'mapping_{i}',
+                f"mapping_{i}",
                 nn.Sequential(
                     nn.Linear(1024, 1024),
                     nn.LayerNorm(1024),
@@ -175,30 +214,30 @@ class LocalFacialExtractor(nn.Module):
 
         # Process each of the 5 visual feature inputs
         for i in range(5):
-            vit_feature = getattr(self, f'mapping_{i}')(y[i])
+            vit_feature = getattr(self, f"mapping_{i}")(y[i])
             ctx_feature = torch.cat((x, vit_feature), dim=1)
 
-            # Pass through the PerceiverAttention and FeedForward layers
-            for attn, ff in self.layers[i * self.depth: (i + 1) * self.depth]:
+            # Pass through the PerceiverAttention and ConsisIDFeedForward layers
+            for attn, ff in self.layers[i * self.depth : (i + 1) * self.depth]:
                 latents = attn(ctx_feature, latents) + latents
                 latents = ff(latents) + latents
 
         # Retain only the query latents
-        latents = latents[:, :self.num_queries]
+        latents = latents[:, : self.num_queries]
         # Project the latents to the output dimension
         latents = latents @ self.proj_out
         return latents
-    
+
 
 class PerceiverCrossAttention(nn.Module):
     """
-    
+
     Args:
         dim (int): Dimension of the input latent and output. Default is 3072.
         dim_head (int): Dimension of each attention head. Default is 128.
         heads (int): Number of attention heads. Default is 16.
         kv_dim (int): Dimension of the key/value input, allowing flexible cross-attention. Default is 2048.
-    
+
     Attributes:
         scale (float): Scaling factor used in dot-product attention for numerical stability.
         norm1 (nn.LayerNorm): Layer normalization applied to the input image features.
@@ -208,9 +247,10 @@ class PerceiverCrossAttention(nn.Module):
         to_out (nn.Linear): Linear layer for outputting the final result after attention.
 
     """
+
     def __init__(self, *, dim=3072, dim_head=128, heads=16, kv_dim=2048):
         super().__init__()
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
         self.dim_head = dim_head
         self.heads = heads
         inner_dim = dim_head * heads
@@ -232,13 +272,13 @@ class PerceiverCrossAttention(nn.Module):
                 - batch_size (b): Number of samples in the batch.
                 - n1: Sequence length (e.g., number of patches or tokens).
                 - D: Feature dimension.
-            
+
             latents (torch.Tensor): Latent feature representations with shape (batch_size, n2, D), where:
                 - n2: Number of latent elements.
-        
+
         Returns:
             torch.Tensor: Attention-modulated features with shape (batch_size, n2, D).
-        
+
         """
         # Apply layer normalization to the input image and latent features
         x = self.norm1(x)

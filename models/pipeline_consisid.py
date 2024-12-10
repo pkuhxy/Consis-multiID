@@ -1,8 +1,16 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright 2024 ConsisID Authors and The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import inspect
 import math
@@ -13,20 +21,19 @@ import sys
 import PIL
 import numpy as np
 import cv2
-from PIL import Image
 import torch
+from dataclasses import dataclass
 from transformers import T5EncoderModel, T5Tokenizer
 
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
-from diffusers.models import AutoencoderKLCogVideoX, CogVideoXTransformer3DModel
+from diffusers.models import AutoencoderKLCogVideoX
 from diffusers.models.embeddings import get_3d_rotary_pos_embed
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import CogVideoXDDIMScheduler, CogVideoXDPMScheduler
-from diffusers.utils import logging, replace_example_docstring
+from diffusers.utils import logging, replace_example_docstring, BaseOutput
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.video_processor import VideoProcessor
-from diffusers.pipelines.cogvideo.pipeline_output import CogVideoXPipelineOutput
 
 from models.transformer_consisid import ConsisIDTransformer3DModel
 
@@ -37,26 +44,28 @@ for project_root in project_roots:
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
+
 EXAMPLE_DOC_STRING = """
     Examples:
         ```py
         >>> import torch
-        >>> from diffusers import CogVideoXImageToVideoPipeline
+        >>> from diffusers import ConsisIDPipeline
         >>> from diffusers.utils import export_to_video, load_image
 
-        >>> pipe = CogVideoXImageToVideoPipeline.from_pretrained("THUDM/CogVideoX-5b-I2V", torch_dtype=torch.bfloat16)
+        >>> pipe = ConsisIDPipeline.from_pretrained("https://huggingface.co/BestWishYsh/ConsisID-preview", torch_dtype=torch.bfloat16)
         >>> pipe.to("cuda")
 
-        >>> prompt = "An astronaut hatching from an egg, on the surface of the moon, the darkness and depth of space realised in the background. High quality, ultrarealistic detail and breath-taking movie-like camera shot."
+        >>> prompt = "A woman adorned with a delicate flower crown, is standing amidst a field of gently swaying wildflowers. Her eyes sparkle with a serene gaze, and a faint smile graces her lips, suggesting a moment of peaceful contentment. The shot is framed from the waist up, highlighting the gentle breeze lightly tousling her hair. The background reveals an expansive meadow under a bright blue sky, capturing the tranquility of a sunny afternoon."
         >>> image = load_image(
-        ...     "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/astronaut.jpg"
+        ...     "https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/example_images/1.png?raw=true"
         ... )
         >>> video = pipe(image, prompt, use_dynamic_cfg=True)
         >>> export_to_video(video.frames[0], "output.mp4", fps=8)
         ```
 """
 
-def draw_kps(image_pil, kps, color_list=[(255,0,0), (0,255,0), (0,0,255), (255,255,0), (255,0,255)]):
+
+def draw_kps(image_pil, kps, color_list=[(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]):
     stickwidth = 4
     limbSeq = np.array([[0, 2], [1, 2], [3, 2], [4, 2]])
     kps = np.array(kps)
@@ -72,7 +81,9 @@ def draw_kps(image_pil, kps, color_list=[(255,0,0), (0,255,0), (0,0,255), (255,2
         y = kps[index][:, 1]
         length = ((x[0] - x[1]) ** 2 + (y[0] - y[1]) ** 2) ** 0.5
         angle = math.degrees(math.atan2(y[0] - y[1], x[0] - x[1]))
-        polygon = cv2.ellipse2Poly((int(np.mean(x)), int(np.mean(y))), (int(length / 2), stickwidth), int(angle), 0, 360, 1)
+        polygon = cv2.ellipse2Poly(
+            (int(np.mean(x)), int(np.mean(y))), (int(length / 2), stickwidth), int(angle), 0, 360, 1
+        )
         out_img = cv2.fillConvexPoly(out_img.copy(), polygon, color)
     out_img = (out_img * 0.6).astype(np.uint8)
 
@@ -81,8 +92,9 @@ def draw_kps(image_pil, kps, color_list=[(255,0,0), (0,255,0), (0,0,255), (255,2
         x, y = kp
         out_img = cv2.circle(out_img.copy(), (int(x), int(y)), 10, color, -1)
 
-    out_img_pil = Image.fromarray(out_img.astype(np.uint8))
+    out_img_pil = PIL.Image.fromarray(out_img.astype(np.uint8))
     return out_img_pil
+
 
 def process_image(image, vae):
     image_noise_sigma = torch.normal(mean=-3.0, std=0.5, size=(1,), device=image.device)
@@ -91,6 +103,7 @@ def process_image(image, vae):
     input_image = image + noisy_image
     image_latent_dist = vae.encode(input_image).latent_dist
     return image_latent_dist
+
 
 # Similar to diffusers.pipelines.hunyuandit.pipeline_hunyuandit.get_resize_crop_region_for_grid
 def get_resize_crop_region_for_grid(src, tgt_width, tgt_height):
@@ -185,9 +198,24 @@ def retrieve_latents(
         raise AttributeError("Could not access latents of provided encoder_output")
 
 
+@dataclass
+class ConsisIDPipelineOutput(BaseOutput):
+    r"""
+    Output class for ConsisID pipelines.
+
+    Args:
+        frames (`torch.Tensor`, `np.ndarray`, or List[List[PIL.Image.Image]]):
+            List of video outputs - It can be a nested list of length `batch_size,` with each sub-list containing
+            denoised PIL image sequences of length `num_frames.` It can also be a NumPy array or Torch tensor of shape
+            `(batch_size, num_frames, channels, height, width)`.
+    """
+
+    frames: torch.Tensor
+
+
 class ConsisIDPipeline(DiffusionPipeline):
     r"""
-    Pipeline for image-to-video generation using CogVideoX.
+    Pipeline for image-to-video generation using ConsisID.
 
     This model inherits from [`DiffusionPipeline`]. Check the superclass documentation for the generic methods the
     library implements for all the pipelines (such as downloading or saving, running on a particular device, etc.)
@@ -196,7 +224,7 @@ class ConsisIDPipeline(DiffusionPipeline):
         vae ([`AutoencoderKL`]):
             Variational Auto-Encoder (VAE) Model to encode and decode videos to and from latent representations.
         text_encoder ([`T5EncoderModel`]):
-            Frozen text-encoder. CogVideoX uses
+            Frozen text-encoder. ConsisID uses
             [T5](https://huggingface.co/docs/transformers/model_doc/t5#transformers.T5EncoderModel); specifically the
             [t5-v1_1-xxl](https://huggingface.co/PixArt-alpha/PixArt-alpha/tree/main/t5-v1_1-xxl) variant.
         tokenizer (`T5Tokenizer`):
@@ -222,7 +250,7 @@ class ConsisIDPipeline(DiffusionPipeline):
         tokenizer: T5Tokenizer,
         text_encoder: T5EncoderModel,
         vae: AutoencoderKLCogVideoX,
-        transformer: Union[ConsisIDTransformer3DModel, CogVideoXTransformer3DModel],
+        transformer: Union[ConsisIDTransformer3DModel],
         scheduler: Union[CogVideoXDDIMScheduler, CogVideoXDPMScheduler],
     ):
         super().__init__()
@@ -246,7 +274,7 @@ class ConsisIDPipeline(DiffusionPipeline):
 
         self.video_processor = VideoProcessor(vae_scale_factor=self.vae_scale_factor_spatial)
 
-    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline._get_t5_prompt_embeds
+    # Copied from diffusers.pipelines.consisid.pipeline_consisID.ConsisIDPipeline._get_t5_prompt_embeds
     def _get_t5_prompt_embeds(
         self,
         prompt: Union[str, List[str]] = None,
@@ -289,7 +317,7 @@ class ConsisIDPipeline(DiffusionPipeline):
 
         return prompt_embeds
 
-    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline.encode_prompt
+    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline.encode_prompt
     def encode_prompt(
         self,
         prompt: Union[str, List[str]],
@@ -409,7 +437,8 @@ class ConsisIDPipeline(DiffusionPipeline):
             if kps_cond is not None:
                 kps_cond = kps_cond.unsqueeze(2)
                 kps_cond_latents = [
-                    retrieve_latents(self.vae.encode(kps_cond[i].unsqueeze(0)), generator[i]) for i in range(batch_size)
+                    retrieve_latents(self.vae.encode(kps_cond[i].unsqueeze(0)), generator[i])
+                    for i in range(batch_size)
                 ]
         else:
             image_latents = [retrieve_latents(self.vae.encode(img.unsqueeze(0)), generator) for img in image]
@@ -455,7 +484,7 @@ class ConsisIDPipeline(DiffusionPipeline):
         latents = latents * self.scheduler.init_noise_sigma
         return latents, image_latents
 
-    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline.decode_latents
+    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline.decode_latents
     def decode_latents(self, latents: torch.Tensor) -> torch.Tensor:
         latents = latents.permute(0, 2, 1, 3, 4)  # [batch_size, num_channels, num_frames, height, width]
         latents = 1 / self.vae_scaling_factor_image * latents
@@ -554,13 +583,13 @@ class ConsisIDPipeline(DiffusionPipeline):
                     f" {negative_prompt_embeds.shape}."
                 )
 
-    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline.fuse_qkv_projections
+    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline.fuse_qkv_projections
     def fuse_qkv_projections(self) -> None:
         r"""Enables fused QKV projections."""
         self.fusing_transformer = True
         self.transformer.fuse_qkv_projections()
 
-    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline.unfuse_qkv_projections
+    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline.unfuse_qkv_projections
     def unfuse_qkv_projections(self) -> None:
         r"""Disable QKV projection fusion if enabled."""
         if not self.fusing_transformer:
@@ -569,7 +598,7 @@ class ConsisIDPipeline(DiffusionPipeline):
             self.transformer.unfuse_qkv_projections()
             self.fusing_transformer = False
 
-    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline._prepare_rotary_positional_embeddings
+    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline._prepare_rotary_positional_embeddings
     def _prepare_rotary_positional_embeddings(
         self,
         height: int,
@@ -638,7 +667,7 @@ class ConsisIDPipeline(DiffusionPipeline):
         id_vit_hidden: Optional[torch.Tensor] = None,
         id_cond: Optional[torch.Tensor] = None,
         kps_cond: Optional[torch.Tensor] = None,
-    ) -> Union[CogVideoXPipelineOutput, Tuple]:
+    ) -> Union[ConsisIDPipelineOutput, Tuple]:
         """
         Function invoked when calling the pipeline for generation.
 
@@ -658,7 +687,7 @@ class ConsisIDPipeline(DiffusionPipeline):
                 The width in pixels of the generated image. This is set to 720 by default for the best results.
             num_frames (`int`, defaults to `48`):
                 Number of frames to generate. Must be divisible by self.vae_scale_factor_temporal. Generated video will
-                contain 1 extra frame because CogVideoX is conditioned with (num_seconds * fps + 1) frames where
+                contain 1 extra frame because ConsisID is conditioned with (num_seconds * fps + 1) frames where
                 num_seconds is 6 and fps is 4. However, since videos can be saved at any fps, the only condition that
                 needs to be satisfied is that of divisibility mentioned above.
             num_inference_steps (`int`, *optional*, defaults to 50):
@@ -712,8 +741,8 @@ class ConsisIDPipeline(DiffusionPipeline):
         Examples:
 
         Returns:
-            [`~pipelines.cogvideo.pipeline_output.CogVideoXPipelineOutput`] or `tuple`:
-            [`~pipelines.cogvideo.pipeline_output.CogVideoXPipelineOutput`] if `return_dict` is True, otherwise a
+            [`~pipelines.consisid.pipeline_output.ConsisIDPipelineOutput`] or `tuple`:
+            [`~pipelines.consisid.pipeline_output.ConsisIDPipelineOutput`] if `return_dict` is True, otherwise a
             `tuple`. When returning a tuple, the first element is a list with the generated images.
         """
         if num_frames > 49:
@@ -784,7 +813,7 @@ class ConsisIDPipeline(DiffusionPipeline):
         image = self.video_processor.preprocess(image, height=height, width=width).to(
             device, dtype=prompt_embeds.dtype
         )
-        
+
         latent_channels = self.transformer.config.in_channels // 2
         latents, image_latents = self.prepare_latents(
             image,
@@ -797,9 +826,9 @@ class ConsisIDPipeline(DiffusionPipeline):
             device,
             generator,
             latents,
-            kps_cond
+            kps_cond,
         )
-            
+
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
@@ -836,8 +865,8 @@ class ConsisIDPipeline(DiffusionPipeline):
                     timestep=timestep,
                     image_rotary_emb=image_rotary_emb,
                     return_dict=False,
-                    id_vit_hidden = id_vit_hidden, 
-                    id_cond = id_cond,
+                    id_vit_hidden=id_vit_hidden,
+                    id_cond=id_cond,
                 )[0]
                 noise_pred = noise_pred.float()
 
@@ -891,4 +920,4 @@ class ConsisIDPipeline(DiffusionPipeline):
         if not return_dict:
             return (video,)
 
-        return CogVideoXPipelineOutput(frames=video)
+        return ConsisIDPipelineOutput(frames=video)

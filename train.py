@@ -394,10 +394,10 @@ def main(args):
         # detect face in the videos
         face_clip_model = None
         face_main_model = None
-        face_helper     = None
-        handler_ante    = None
+        face_helper_1     = None
+        face_helper_2    = None
         if args.is_train_face:
-            face_helper = FaceRestoreHelper(
+            face_helper_1 = FaceRestoreHelper(
                 upscale_factor=1,
                 face_size=512,
                 crop_ratio=(1, 1),
@@ -406,10 +406,10 @@ def main(args):
                 device=accelerator.device,
                 model_rootpath=os.path.join(args.pretrained_model_name_or_path, "face_encoder")
             )
-            face_helper.face_parse = None
-            face_helper.face_parse = init_parsing_model(model_name='bisenet', device=accelerator.device, model_rootpath=os.path.join(args.pretrained_model_name_or_path, "face_encoder"))
-            face_helper.face_det.eval()
-            face_helper.face_parse.eval()
+            face_helper_1.face_parse = None
+            face_helper_1.face_parse = init_parsing_model(model_name='bisenet', device=accelerator.device, model_rootpath=os.path.join(args.pretrained_model_name_or_path, "face_encoder"))
+            face_helper_1.face_det.eval()
+            face_helper_1.face_parse.eval()
 
             model, _, _ = create_model_and_transforms('EVA02-CLIP-L-14-336', os.path.join(args.pretrained_model_name_or_path, "face_encoder", "EVA02_CLIP_L_336_psz14_s6B.pt"), force_custom_clip=True)
             face_clip_model = model.visual
@@ -426,7 +426,7 @@ def main(args):
             
             device_id = accelerator.process_index % torch.cuda.device_count()
             face_main_model = FaceAnalysis(name='antelopev2', root=os.path.join(args.pretrained_model_name_or_path, "face_encoder"), providers=['CUDAExecutionProvider'], provider_options=[{"device_id": device_id}])
-            handler_ante = insightface.model_zoo.get_model(f'{args.pretrained_model_name_or_path}/face_encoder/models/antelopev2/glintr100.onnx', providers=['CUDAExecutionProvider'], provider_options=[{"device_id": device_id}])
+            face_helper_2 = insightface.model_zoo.get_model(f'{args.pretrained_model_name_or_path}/face_encoder/models/antelopev2/glintr100.onnx', providers=['CUDAExecutionProvider'], provider_options=[{"device_id": device_id}])
 
     # Freeze all the components
     text_encoder.requires_grad_(False)
@@ -434,8 +434,8 @@ def main(args):
     vae.requires_grad_(False)
     if args.is_train_face:
         face_clip_model.requires_grad_(False)
-        face_helper.face_det.requires_grad_(False)
-        face_helper.face_parse.requires_grad_(False)
+        face_helper_1.face_det.requires_grad_(False)
+        face_helper_1.face_parse.requires_grad_(False)
 
     weight_dtype = torch.bfloat16
     if torch.backends.mps.is_available() and weight_dtype == torch.bfloat16:
@@ -450,10 +450,10 @@ def main(args):
     vae.to(accelerator.device, dtype=weight_dtype)
     if args.is_train_face:
         face_clip_model.to(accelerator.device, dtype=weight_dtype)
-        face_helper.face_det.to(accelerator.device)
-        face_helper.face_parse.to(accelerator.device)
+        face_helper_1.face_det.to(accelerator.device)
+        face_helper_1.face_parse.to(accelerator.device)
         face_main_model.prepare(ctx_id=device_id if device_id is not None else 0, det_size=(640, 640))
-        handler_ante.prepare(ctx_id=device_id if device_id is not None else 0)
+        face_helper_2.prepare(ctx_id=device_id if device_id is not None else 0)
         free_memory()
 
     # enable gradient checkpointing
@@ -589,7 +589,7 @@ def main(args):
     for name, param in transformer.named_parameters():
         for trainable_module_name in trainable_modules:
             if trainable_module_name in name:
-                param.requires_grad = False
+                param.requires_grad = True
                 break
     
     if args.is_train_face:
@@ -866,8 +866,8 @@ def main(args):
                     text_encoder.to(accelerator.device)
                     if args.is_train_face:
                         face_clip_model.to(accelerator.device)
-                        face_helper.face_det.to(accelerator.device)
-                        face_helper.face_parse.to(accelerator.device)
+                        face_helper_1.face_det.to(accelerator.device)
+                        face_helper_1.face_parse.to(accelerator.device)
 
                 with torch.no_grad():
                     id_cond = None
@@ -923,7 +923,7 @@ def main(args):
                                     if not args.is_align_face:
                                         original_id_image = np.array(tensor_to_pil(original_face_imgs[idx]).convert("RGB"))
                                         original_id_image = resize_numpy_image_long(original_id_image, 1024)
-                                    id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(face_helper, face_clip_model, handler_ante, eva_transform_mean, eva_transform_std, face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image, is_align_face=args.is_align_face, cal_uncond=False)
+                                    id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std, face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image, is_align_face=args.is_align_face, cal_uncond=False)
                                 except Exception as e:
                                     processed = False
                                     
@@ -938,7 +938,7 @@ def main(args):
                                             id_image = resize_numpy_image_long(id_image, 1024) 
                                             try:
                                                 id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(
-                                                    face_helper, face_clip_model, handler_ante, eva_transform_mean, eva_transform_std,
+                                                    face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std,
                                                     face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image, 
                                                     is_align_face=args.is_align_face, cal_uncond=False
                                                 )
@@ -961,7 +961,7 @@ def main(args):
                                                 id_image = np.array(temp_image.convert("RGB"))
                                                 id_image = resize_numpy_image_long(id_image, 1024)
                                                 id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(
-                                                    face_helper, face_clip_model, handler_ante, eva_transform_mean, eva_transform_std,
+                                                    face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std,
                                                     face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image, 
                                                     is_align_face=args.is_align_face, cal_uncond=False
                                                 )
@@ -1066,8 +1066,8 @@ def main(args):
                     text_encoder.to('cpu')
                     if args.is_train_face:
                         face_clip_model.to('cpu')
-                        face_helper.face_det.to('cpu')
-                        face_helper.face_parse.to('cpu')
+                        face_helper_1.face_det.to('cpu')
+                        face_helper_1.face_parse.to('cpu')
                     free_memory()
 
                 if not args.is_train_face or len(valid_indices) != 0:
@@ -1255,7 +1255,7 @@ def main(args):
                                             B_valid_num = torch.tensor([1], dtype=torch.int32)
                                             id_image = np.array(Image.open(validation_image).convert("RGB"))
                                             id_image = resize_numpy_image_long(id_image, 1024)
-                                            id_cond, id_vit_hidden, align_crop_face_image, kps_cond = process_face_embeddings(face_helper, face_clip_model, handler_ante, eva_transform_mean, eva_transform_std, face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=id_image, is_align_face=args.is_align_face, cal_uncond=False)
+                                            id_cond, id_vit_hidden, align_crop_face_image, kps_cond = process_face_embeddings(face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std, face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=id_image, is_align_face=args.is_align_face, cal_uncond=False)
                                             tensor = align_crop_face_image.cpu().detach()
                                             tensor = tensor.squeeze()
                                             tensor = tensor.permute(1, 2, 0)

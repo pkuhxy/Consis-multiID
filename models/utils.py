@@ -1,7 +1,8 @@
+import os
 import cv2
 import math
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 
 import torch
 from torchvision.transforms import InterpolationMode
@@ -10,7 +11,16 @@ from transformers import T5EncoderModel, T5Tokenizer
 from typing import List, Optional, Tuple, Union
 from diffusers.models.embeddings import get_3d_rotary_pos_embed
 from diffusers.pipelines.cogvideo.pipeline_cogvideox import get_resize_crop_region_for_grid
+from diffusers.utils import load_image
 
+import insightface
+from insightface.app import FaceAnalysis
+from facexlib.parsing import init_parsing_model
+from facexlib.utils.face_restoration_helper import FaceRestoreHelper
+
+from models.eva_clip import create_model_and_transforms
+from models.eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
+from models.eva_clip.utils_qformer import resize_numpy_image_long
 
 def tensor_to_pil(src_img_tensor):
     img = src_img_tensor.clone().detach()
@@ -204,12 +214,12 @@ def draw_kps(image_pil, kps, color_list=[(255,0,0), (0,255,0), (0,0,255), (255,2
     return out_img_pil
 
 
-def process_face_embeddings(face_helper, clip_vision_model, handler_ante, eva_transform_mean, eva_transform_std, app, device, weight_dtype, image, original_id_image=None, is_align_face=True, cal_uncond=False):
+def process_face_embeddings(face_helper_1, clip_vision_model, face_helper_2, eva_transform_mean, eva_transform_std, app, device, weight_dtype, image, original_id_image=None, is_align_face=True):
     """
     Args:
         image: numpy rgb image, range [0, 255]
     """
-    face_helper.clean_all()
+    face_helper_1.clean_all()
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)  # (724, 502, 3)
     # get antelopev2 embedding
     face_info = app.get(image_bgr)
@@ -224,19 +234,19 @@ def process_face_embeddings(face_helper, clip_vision_model, handler_ante, eva_tr
         face_kps = None
 
     # using facexlib to detect and align face
-    face_helper.read_image(image_bgr)
-    face_helper.get_face_landmarks_5(only_center_face=True)
+    face_helper_1.read_image(image_bgr)
+    face_helper_1.get_face_landmarks_5(only_center_face=True)
     if face_kps is None:
-        face_kps = face_helper.all_landmarks_5[0]
-    face_helper.align_warp_face()
-    if len(face_helper.cropped_faces) == 0:
+        face_kps = face_helper_1.all_landmarks_5[0]
+    face_helper_1.align_warp_face()
+    if len(face_helper_1.cropped_faces) == 0:
         raise RuntimeError('facexlib align face fail')
-    align_face = face_helper.cropped_faces[0]  # (512, 512, 3)  # RGB
+    align_face = face_helper_1.cropped_faces[0]  # (512, 512, 3)  # RGB
 
     # incase insightface didn't detect face
     if id_ante_embedding is None:
         print('fail to detect face using insightface, extract embedding on align face')
-        id_ante_embedding = handler_ante.get_feat(align_face)
+        id_ante_embedding = face_helper_2.get_feat(align_face)
 
     id_ante_embedding = torch.from_numpy(id_ante_embedding).to(device, weight_dtype)  # torch.Size([512])
     if id_ante_embedding.ndim == 1:
@@ -246,7 +256,7 @@ def process_face_embeddings(face_helper, clip_vision_model, handler_ante, eva_tr
     if is_align_face:
         input = img2tensor(align_face, bgr2rgb=True).unsqueeze(0) / 255.0  # torch.Size([1, 3, 512, 512])
         input = input.to(device)
-        parsing_out = face_helper.face_parse(normalize(input, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[0]
+        parsing_out = face_helper_1.face_parse(normalize(input, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[0]
         parsing_out = parsing_out.argmax(dim=1, keepdim=True)  # torch.Size([1, 1, 512, 512])
         bg_label = [0, 16, 18, 7, 8, 9, 14, 15]
         bg = sum(parsing_out == i for i in bg_label).bool()
@@ -271,3 +281,83 @@ def process_face_embeddings(face_helper, clip_vision_model, handler_ante, eva_tr
     id_cond = torch.cat([id_ante_embedding, id_cond_vit], dim=-1)  # torch.Size([1, 512]), torch.Size([1, 768])  ->  torch.Size([1, 1280])
 
     return id_cond, id_vit_hidden, return_face_features_image_2, face_kps    # torch.Size([1, 1280]), list(torch.Size([1, 577, 1024]))
+
+
+def process_face_embeddings_infer(face_helper_1, clip_vision_model, face_helper_2, eva_transform_mean, eva_transform_std, app, device, weight_dtype, img_file_path, is_align_face=True):
+    """
+    Args:
+        image: numpy rgb image, range [0, 255]
+    """
+    if isinstance(img_file_path, str):
+        image = np.array(load_image(image=img_file_path).convert("RGB"))
+    else:   
+        image = np.array(ImageOps.exif_transpose(Image.fromarray(img_file_path)).convert("RGB"))
+    
+    image = resize_numpy_image_long(image, 1024)
+    original_id_image = image
+
+    id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(face_helper_1, clip_vision_model, face_helper_2, eva_transform_mean, eva_transform_std, app, device, weight_dtype, image, original_id_image, is_align_face)
+    
+    tensor = align_crop_face_image.cpu().detach()
+    tensor = tensor.squeeze()
+    tensor = tensor.permute(1, 2, 0)
+    tensor = tensor.numpy() * 255
+    tensor = tensor.astype(np.uint8)
+    image = ImageOps.exif_transpose(Image.fromarray(tensor))
+
+    return id_cond, id_vit_hidden, image, face_kps
+
+def prepare_face_models(model_path, device, dtype):
+    """
+    Prepare all face models for the facial recognition task.
+
+    Parameters:
+    - model_path: Path to the directory containing model files.
+    - device: The device (e.g., 'cuda', 'cpu') where models will be loaded.
+    - dtype: Data type (e.g., torch.float32) for model inference.
+
+    Returns:
+    - face_helper_1: First face restoration helper.
+    - face_helper_2: Second face restoration helper.
+    - face_clip_model: CLIP model for face extraction.
+    - eva_transform_mean: Mean value for image normalization.
+    - eva_transform_std: Standard deviation value for image normalization.
+    - face_main_model: Main face analysis model.
+    """
+    # get helper model
+    face_helper_1 = FaceRestoreHelper(
+        upscale_factor=1,
+        face_size=512,
+        crop_ratio=(1, 1),
+        det_model='retinaface_resnet50',
+        save_ext='png',
+        device=device,
+        model_rootpath=os.path.join(model_path, "face_encoder")
+    )
+    face_helper_1.face_parse = None
+    face_helper_1.face_parse = init_parsing_model(model_name='bisenet', device=device, model_rootpath=os.path.join(model_path, "face_encoder"))
+    face_helper_2 = insightface.model_zoo.get_model(f'{model_path}/face_encoder/models/antelopev2/glintr100.onnx', providers=['CUDAExecutionProvider'])
+    face_helper_2.prepare(ctx_id=0)
+
+    # get local facial extractor part 1
+    model, _, _ = create_model_and_transforms('EVA02-CLIP-L-14-336', os.path.join(model_path, "face_encoder", "EVA02_CLIP_L_336_psz14_s6B.pt"), force_custom_clip=True)
+    face_clip_model = model.visual
+    eva_transform_mean = getattr(face_clip_model, 'image_mean', OPENAI_DATASET_MEAN)
+    eva_transform_std = getattr(face_clip_model, 'image_std', OPENAI_DATASET_STD)
+    if not isinstance(eva_transform_mean, (list, tuple)):
+        eva_transform_mean = (eva_transform_mean,) * 3
+    if not isinstance(eva_transform_std, (list, tuple)):
+        eva_transform_std = (eva_transform_std,) * 3
+    eva_transform_mean = eva_transform_mean
+    eva_transform_std = eva_transform_std
+
+    # get local facial extractor part 2
+    face_main_model = FaceAnalysis(name='antelopev2', root=os.path.join(model_path, "face_encoder"), providers=['CUDAExecutionProvider'])
+    face_main_model.prepare(ctx_id=0, det_size=(640, 640))
+    
+    # move face models to device
+    face_helper_1.face_det.eval()
+    face_helper_1.face_parse.eval()
+    face_clip_model.eval()
+
+    return face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std

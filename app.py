@@ -1,12 +1,10 @@
 import os
 import math
 import time
-import numpy
 import spaces
 import random
 import threading
 import gradio as gr
-from PIL import Image, ImageOps
 from moviepy import VideoFileClip
 from datetime import datetime, timedelta
 from huggingface_hub import hf_hub_download, snapshot_download
@@ -17,21 +15,20 @@ from facexlib.parsing import init_parsing_model
 from facexlib.utils.face_restoration_helper import FaceRestoreHelper
 
 import torch
-from diffusers import CogVideoXDPMScheduler
 from diffusers.utils import load_image
 from diffusers.image_processor import VaeImageProcessor
 from diffusers.training_utils import free_memory
 
 from util.utils import *
 from util.rife_model import load_rife_model, rife_inference_with_latents
-from models.utils import process_face_embeddings
+from models.utils import process_face_embeddings_infer
 from models.transformer_consisid import ConsisIDTransformer3DModel
 from models.pipeline_consisid import ConsisIDPipeline
 from models.eva_clip import create_model_and_transforms
 from models.eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
-from models.eva_clip.utils_qformer import resize_numpy_image_long
 
 
+# 0. pre config
 model_path = "ckpts"
 
 lora_path = None
@@ -51,17 +48,11 @@ if os.path.exists(os.path.join(model_path, "transformer_ema")):
     subfolder = "transformer_ema"
 else:
     subfolder = "transformer"
-        
-transformer = ConsisIDTransformer3DModel.from_pretrained_cus(model_path, subfolder=subfolder)
-scheduler = CogVideoXDPMScheduler.from_pretrained(model_path, subfolder="scheduler")
 
-try:
-    is_kps = transformer.config.is_kps
-except:
-    is_kps = False
-    
-# 1. load face helper models
-face_helper = FaceRestoreHelper(
+
+# 1. prepare all the face models
+# get helper model
+face_helper_1 = FaceRestoreHelper(
     upscale_factor=1,
     face_size=512,
     crop_ratio=(1, 1),
@@ -70,15 +61,14 @@ face_helper = FaceRestoreHelper(
     device=device,
     model_rootpath=os.path.join(model_path, "face_encoder")
 )
-face_helper.face_parse = None
-face_helper.face_parse = init_parsing_model(model_name='bisenet', device=device, model_rootpath=os.path.join(model_path, "face_encoder"))
-face_helper.face_det.eval()
-face_helper.face_parse.eval()
+face_helper_1.face_parse = None
+face_helper_1.face_parse = init_parsing_model(model_name='bisenet', device=device, model_rootpath=os.path.join(model_path, "face_encoder"))
+face_helper_2 = insightface.model_zoo.get_model(f'{model_path}/face_encoder/models/antelopev2/glintr100.onnx', providers=['CUDAExecutionProvider'])
+face_helper_2.prepare(ctx_id=0)
 
+# get local facial extractor part 1
 model, _, _ = create_model_and_transforms('EVA02-CLIP-L-14-336', os.path.join(model_path, "face_encoder", "EVA02_CLIP_L_336_psz14_s6B.pt"), force_custom_clip=True)
 face_clip_model = model.visual
-face_clip_model.eval()
-
 eva_transform_mean = getattr(face_clip_model, 'image_mean', OPENAI_DATASET_MEAN)
 eva_transform_std = getattr(face_clip_model, 'image_std', OPENAI_DATASET_STD)
 if not isinstance(eva_transform_mean, (list, tuple)):
@@ -88,43 +78,41 @@ if not isinstance(eva_transform_std, (list, tuple)):
 eva_transform_mean = eva_transform_mean
 eva_transform_std = eva_transform_std
 
+# get local facial extractor part 2
 face_main_model = FaceAnalysis(name='antelopev2', root=os.path.join(model_path, "face_encoder"), providers=['CUDAExecutionProvider'])
-handler_ante = insightface.model_zoo.get_model(f'{model_path}/face_encoder/models/antelopev2/glintr100.onnx', providers=['CUDAExecutionProvider'])
 face_main_model.prepare(ctx_id=0, det_size=(640, 640))
-handler_ante.prepare(ctx_id=0)
-    
+
+# move face models to device
+face_helper_1.face_det.eval()
+face_helper_1.face_parse.eval()
+face_clip_model.eval()
 face_clip_model.to(device, dtype=dtype)
-face_helper.face_det.to(device)
-face_helper.face_parse.to(device)
-transformer.to(device, dtype=dtype)
+face_helper_1.face_det.to(device)
+face_helper_1.face_parse.to(device)
 free_memory()
 
-pipe = ConsisIDPipeline.from_pretrained(model_path, transformer=transformer, scheduler=scheduler, torch_dtype=dtype)
+
+# 2. Load Pipeline.
+transformer = ConsisIDTransformer3DModel.from_pretrained_cus(model_path, subfolder=subfolder)
+transformer.to(device, dtype=dtype)
+pipe = ConsisIDPipeline.from_pretrained(model_path, transformer=transformer, torch_dtype=dtype)
+
 # If you're using with lora, add this code
 if lora_path:
     pipe.load_lora_weights(lora_path, weight_name="pytorch_lora_weights.safetensors", adapter_name="test_1")
     pipe.fuse_lora(lora_scale=1 / lora_rank)
 
-scheduler_args = {}
-if "variance_type" in pipe.scheduler.config:
-    variance_type = pipe.scheduler.config.variance_type
-    if variance_type in ["learned", "learned_range"]:
-        variance_type = "fixed_small"
-    scheduler_args["variance_type"] = variance_type
-
-pipe.scheduler = CogVideoXDPMScheduler.from_config(pipe.scheduler.config, **scheduler_args)
 pipe.to(device)
-
-# Enable CPU offload for the model.
-# turn on if you don't have multiple GPUs or enough GPU memory(such as H100) and it will cost more time in inference, it may also reduce the quality
-pipe.enable_model_cpu_offload()
-pipe.enable_sequential_cpu_offload()
+# Save Memory. Turn on if you don't have multiple GPUs or enough GPU memory(such as H100) and it will cost more time in inference, it may also reduce the quality
+# pipe.enable_model_cpu_offload()
+# pipe.enable_sequential_cpu_offload()
 # pipe.vae.enable_slicing()
 # pipe.vae.enable_tiling()
 
 os.makedirs("./output", exist_ok=True)
 os.makedirs("./gradio_tmp", exist_ok=True)
 
+# load upscale and interpolation model
 upscale_model = load_sd_upscale(f"{model_path}/model_real_esran/RealESRGAN_x4.pth", device)
 frame_interpolation_model = load_rife_model(f"{model_path}/model_rife")
 
@@ -142,34 +130,21 @@ def generate(
     if seed == -1:
         seed = random.randint(0, 2**8 - 1)
 
-    id_image = np.array(ImageOps.exif_transpose(Image.fromarray(image_input)).convert("RGB"))
-    id_image = resize_numpy_image_long(id_image, 1024)
-    id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(face_helper, face_clip_model, handler_ante, 
+    # 4. Process model input
+    id_cond, id_vit_hidden, image, face_kps = process_face_embeddings_infer(face_helper_1, face_clip_model, face_helper_2, 
                                                                             eva_transform_mean, eva_transform_std, 
-                                                                            face_main_model, device, dtype, id_image, 
-                                                                            original_id_image=id_image, is_align_face=True, 
-                                                                            cal_uncond=False)
-    
-    if is_kps:
-        kps_cond = face_kps
-    else:
-        kps_cond = None
+                                                                            face_main_model, device, dtype, 
+                                                                            image_input, is_align_face=True)
 
-    tensor = align_crop_face_image.cpu().detach()
-    tensor = tensor.squeeze()
-    tensor = tensor.permute(1, 2, 0)
-    tensor = tensor.numpy() * 255
-    tensor = tensor.astype(np.uint8)
-    image  = ImageOps.exif_transpose(Image.fromarray(tensor))
+    is_kps = getattr(transformer.config, 'is_kps', False)
+    kps_cond = face_kps if is_kps else None
 
     prompt = prompt.strip('"')
-    if len(negative_prompt) == 0:
-        negative_prompt = None
     if negative_prompt:
         negative_prompt = negative_prompt.strip('"')
     
-    generator = torch.Generator(device).manual_seed(seed) if seed else None    
-
+    # 5. Generate Identity-Preserving Video
+    generator = torch.Generator(device).manual_seed(seed) if seed else None
     video_pt = pipe(
         prompt=prompt,
         negative_prompt=negative_prompt,
@@ -388,8 +363,6 @@ with gr.Blocks() as demo:
         seed_update = gr.update(visible=True, value=seed)
 
         return video_path, video_update, gif_update, seed_update
-
-    run.zerogpu = True
     
     generate_button.click(
         fn=run,

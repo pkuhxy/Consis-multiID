@@ -1,8 +1,16 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright 2024 ConsisID Authors and The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from typing import Any, Dict, Optional, Tuple, Union
 import os
@@ -38,9 +46,9 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
 @maybe_allow_in_graph
-class CogVideoXBlock(nn.Module):
+class ConsisIDBlock(nn.Module):
     r"""
-    Transformer block used in [CogVideoX](https://github.com/THUDM/CogVideo) model.
+    Transformer block used in [ConsisID](https://github.com/PKU-YuanGroup/ConsisID) model.
 
     Parameters:
         dim (`int`):
@@ -132,9 +140,6 @@ class CogVideoXBlock(nn.Module):
             hidden_states, encoder_hidden_states, temb
         )
 
-        # insert here
-        # pass
-        
         # attention
         attn_hidden_states, attn_encoder_hidden_states = self.attn1(
             hidden_states=norm_hidden_states,
@@ -162,7 +167,7 @@ class CogVideoXBlock(nn.Module):
 
 class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
     """
-    A Transformer model for video-like data in [CogVideoX](https://github.com/THUDM/CogVideo).
+    A Transformer model for video-like data in [ConsisID](https://github.com/PKU-YuanGroup/ConsisID).
 
     Parameters:
         num_attention_heads (`int`, defaults to `30`):
@@ -191,7 +196,7 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
             The height of the input latents.
         sample_frames (`int`, defaults to `49`):
             The number of frames in the input latents. Note that this parameter was incorrectly initialized to 49
-            instead of 13 because CogVideoX processed 13 latent frames at once in its default and recommended settings,
+            instead of 13 because ConsisID processed 13 latent frames at once in its default and recommended settings,
             but cannot be changed to the correct value to ensure backwards compatibility. To create a transformer with
             K latent frames, the correct value to pass here would be: ((K - 1) * temporal_compression_ratio + 1).
         patch_size (`int`, defaults to `2`):
@@ -212,6 +217,32 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
             Scaling factor to apply in 3D positional embeddings across spatial dimensions.
         temporal_interpolation_scale (`float`, defaults to `1.0`):
             Scaling factor to apply in 3D positional embeddings across temporal dimensions.
+        is_train_face (`bool`, defaults to `False`):
+            Whether to use enable the identity-preserving module during the training process.
+            When set to `True`, the model will focus on identity-preserving tasks.
+        is_kps (`bool`, defaults to `False`):
+            Whether to enable keypoint for global facial extractor.
+            If `True`, keypoints will be in the model.
+        cross_attn_interval (`int`, defaults to `1`):
+            The interval between cross-attention layers in the Transformer architecture.
+            A larger value may reduce the frequency of cross-attention computations,
+            which can help reduce computational overhead.
+        LFE_num_tokens (`int`, defaults to `32`):
+            The number of tokens to use in the Local Facial Extractor (LFE).
+            This module is responsible for capturing high frequency representations 
+            of the face.
+        LFE_output_dim (`int`, defaults to `768`):
+            The output dimension of the Local Facial Extractor (LFE) module.
+            This dimension determines the size of the feature vectors produced 
+            by the LFE module.
+        LFE_heads (`int`, defaults to `12`):
+            The number of attention heads used in the Local Facial Extractor (LFE) module.
+            More heads may improve the ability to capture diverse features, but 
+            can also increase computational complexity.
+        local_face_scale (`float`, defaults to `1.0`):
+            A scaling factor used to adjust the importance of local facial features 
+            in the model. This can influence how strongly the model focuses on 
+            high frequency face-related content.
     """
 
     _supports_gradient_checkpointing = True
@@ -257,7 +288,7 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
 
         if not use_rotary_positional_embeddings and use_learned_positional_embeddings:
             raise ValueError(
-                "There are no CogVideoX checkpoints available with disable rotary embeddings and learned positional "
+                "There are no ConsisID checkpoints available with disable rotary embeddings and learned positional "
                 "embeddings. If you're using a custom model and/or believe this should be supported, please open an "
                 "issue at https://github.com/huggingface/diffusers/issues."
             )
@@ -288,7 +319,7 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
         # 3. Define spatio-temporal transformers blocks
         self.transformer_blocks = nn.ModuleList(
             [
-                CogVideoXBlock(
+                ConsisIDBlock(
                     dim=inner_dim,
                     num_attention_heads=num_attention_heads,
                     attention_head_dim=attention_head_dim,
@@ -319,6 +350,7 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
         self.is_train_face = is_train_face
         self.is_kps = is_kps
 
+        # 5. Define identity-preserving config
         if is_train_face:
             self.inner_dim = inner_dim
             self.cross_attn_interval = cross_attn_interval
@@ -338,21 +370,26 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
         weight_dtype = next(self.transformer_blocks.parameters()).dtype
         self.local_facial_extractor = LocalFacialExtractor()
         self.local_facial_extractor.to(device, dtype=weight_dtype)
-        self.perceiver_cross_attention = nn.ModuleList([
-            PerceiverCrossAttention(dim=self.inner_dim, dim_head=128, heads=16, kv_dim=self.LFE_final_output_dim).to(device, dtype=weight_dtype) for _ in range(self.num_ca)
-        ])
+        self.perceiver_cross_attention = nn.ModuleList(
+            [
+                PerceiverCrossAttention(
+                    dim=self.inner_dim, dim_head=128, heads=16, kv_dim=self.LFE_final_output_dim
+                ).to(device, dtype=weight_dtype)
+                for _ in range(self.num_ca)
+            ]
+        )
 
     def save_face_modules(self, path: str):
         save_dict = {
-            'local_facial_extractor': self.local_facial_extractor.state_dict(),
-            'perceiver_cross_attention': [ca.state_dict() for ca in self.perceiver_cross_attention],
+            "local_facial_extractor": self.local_facial_extractor.state_dict(),
+            "perceiver_cross_attention": [ca.state_dict() for ca in self.perceiver_cross_attention],
         }
         torch.save(save_dict, path)
 
     def load_face_modules(self, path: str):
         checkpoint = torch.load(path, map_location=self.device)
-        self.local_facial_extractor.load_state_dict(checkpoint['local_facial_extractor'])
-        for ca, state_dict in zip(self.perceiver_cross_attention, checkpoint['perceiver_cross_attention']):
+        self.local_facial_extractor.load_state_dict(checkpoint["local_facial_extractor"])
+        for ca, state_dict in zip(self.perceiver_cross_attention, checkpoint["perceiver_cross_attention"]):
             ca.load_state_dict(state_dict)
 
     @property
@@ -463,14 +500,16 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
         timestep_cond: Optional[torch.Tensor] = None,
         image_rotary_emb: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         attention_kwargs: Optional[Dict[str, Any]] = None,
-        id_cond: Optional[torch.Tensor] = None, 
+        id_cond: Optional[torch.Tensor] = None,
         id_vit_hidden: Optional[torch.Tensor] = None,
         return_dict: bool = True,
     ):
         # fuse clip and insightface
         if self.is_train_face:
             assert id_cond is not None and id_vit_hidden is not None
-            valid_face_emb = self.local_facial_extractor(id_cond, id_vit_hidden)  # torch.Size([1, 1280]), list[5](torch.Size([1, 577, 1024]))  ->  torch.Size([1, 32, 2048])
+            valid_face_emb = self.local_facial_extractor(
+                id_cond, id_vit_hidden
+            )  # torch.Size([1, 1280]), list[5](torch.Size([1, 577, 1024]))  ->  torch.Size([1, 32, 2048])
 
         if attention_kwargs is not None:
             attention_kwargs = attention_kwargs.copy()
@@ -506,7 +545,7 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
 
         text_seq_length = encoder_hidden_states.shape[1]
         encoder_hidden_states = hidden_states[:, :text_seq_length]  # torch.Size([1, 226, 3072])
-        hidden_states = hidden_states[:, text_seq_length:]   # torch.Size([1, 17550, 3072])
+        hidden_states = hidden_states[:, text_seq_length:]  # torch.Size([1, 17550, 3072])
 
         # 3. Transformer blocks
         ca_idx = 0
@@ -538,17 +577,14 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
 
             if self.is_train_face:
                 if i % self.cross_attn_interval == 0 and valid_face_emb is not None:
-                    hidden_states = hidden_states + self.local_face_scale * self.perceiver_cross_attention[ca_idx](valid_face_emb, hidden_states)  # torch.Size([2, 32, 2048])  torch.Size([2, 17550, 3072])                        
+                    hidden_states = hidden_states + self.local_face_scale * self.perceiver_cross_attention[ca_idx](
+                        valid_face_emb, hidden_states
+                    )  # torch.Size([2, 32, 2048])  torch.Size([2, 17550, 3072])
                     ca_idx += 1
 
-        if not self.config.use_rotary_positional_embeddings:
-            # CogVideoX-2B
-            hidden_states = self.norm_final(hidden_states)
-        else:
-            # CogVideoX-5B
-            hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
-            hidden_states = self.norm_final(hidden_states)
-            hidden_states = hidden_states[:, text_seq_length:]
+        hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
+        hidden_states = self.norm_final(hidden_states)
+        hidden_states = hidden_states[:, text_seq_length:]
 
         # 4. Final block
         hidden_states = self.norm_out(hidden_states, temb=emb)
@@ -556,8 +592,7 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
 
         # 5. Unpatchify
         # Note: we use `-1` instead of `channels`:
-        #   - It is okay to `channels` use for CogVideoX-2b and CogVideoX-5b (number of input channels is equal to output channels)
-        #   - However, for CogVideoX-5b-I2V also takes concatenated input image latents (number of input channels is twice the output channels)
+        #   - It is okay to `channels` use for ConsisID (number of input channels is equal to output channels)
         p = self.config.patch_size
         output = hidden_states.reshape(batch_size, num_frames, height // p, width // p, -1, p, p)
         output = output.permute(0, 1, 4, 2, 5, 3, 6).flatten(5, 6).flatten(3, 4)
