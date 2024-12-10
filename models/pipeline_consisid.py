@@ -19,8 +19,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import os
 import sys
 import PIL
-import numpy as np
-import cv2
 import torch
 from dataclasses import dataclass
 from transformers import T5EncoderModel, T5Tokenizer
@@ -36,6 +34,7 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.video_processor import VideoProcessor
 
 from models.transformer_consisid import ConsisIDTransformer3DModel
+from models.utils import draw_kps
 
 current_file_path = os.path.abspath(__file__)
 project_roots = [os.path.dirname(os.path.dirname(current_file_path))]
@@ -50,59 +49,48 @@ EXAMPLE_DOC_STRING = """
         ```py
         >>> import torch
         >>> from diffusers import ConsisIDPipeline
-        >>> from diffusers.utils import export_to_video, load_image
+        >>> from diffusers.pipelines.consisid.util_consisid import prepare_face_models, process_face_embeddings_infer
+        >>> from diffusers.utils import export_to_video
+        >>> from huggingface_hub import snapshot_download
 
-        >>> pipe = ConsisIDPipeline.from_pretrained("https://huggingface.co/BestWishYsh/ConsisID-preview", torch_dtype=torch.bfloat16)
+        >>> snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir="BestWishYsh/ConsisID-preview")
+
+        >>> face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std = (
+        ...     prepare_face_models("BestWishYsh/ConsisID-preview", device="cuda", dtype=torch.bfloat16)
+        ... )
+        >>> pipe = ConsisIDPipeline.from_pretrained("BestWishYsh/ConsisID-preview", torch_dtype=torch.bfloat16)
         >>> pipe.to("cuda")
 
         >>> prompt = "A woman adorned with a delicate flower crown, is standing amidst a field of gently swaying wildflowers. Her eyes sparkle with a serene gaze, and a faint smile graces her lips, suggesting a moment of peaceful contentment. The shot is framed from the waist up, highlighting the gentle breeze lightly tousling her hair. The background reveals an expansive meadow under a bright blue sky, capturing the tranquility of a sunny afternoon."
-        >>> image = load_image(
-        ...     "https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/example_images/1.png?raw=true"
+        >>> image = "https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/example_images/1.png?raw=true"
+
+        >>> id_cond, id_vit_hidden, image, face_kps = process_face_embeddings_infer(
+        ...     face_helper_1,
+        ...     face_clip_model,
+        ...     face_helper_2,
+        ...     eva_transform_mean,
+        ...     eva_transform_std,
+        ...     face_main_model,
+        ...     "cuda",
+        ...     torch.bfloat16,
+        ...     image,
+        ...     is_align_face=True,
         ... )
-        >>> video = pipe(image, prompt, use_dynamic_cfg=True)
+        >>> is_kps = getattr(pipe.transformer.config, "is_kps", False)
+        >>> kps_cond = face_kps if is_kps else None
+
+        >>> video = pipe(
+        ...     image=image,
+        ...     prompt=prompt,
+        ...     use_dynamic_cfg=False,
+        ...     id_vit_hidden=id_vit_hidden,
+        ...     id_cond=id_cond,
+        ...     kps_cond=kps_cond,
+        ...     generator=torch.Generator("cuda").manual_seed(42),
+        ... )
         >>> export_to_video(video.frames[0], "output.mp4", fps=8)
         ```
 """
-
-
-def draw_kps(image_pil, kps, color_list=[(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]):
-    stickwidth = 4
-    limbSeq = np.array([[0, 2], [1, 2], [3, 2], [4, 2]])
-    kps = np.array(kps)
-
-    w, h = image_pil.size
-    out_img = np.zeros([h, w, 3])
-
-    for i in range(len(limbSeq)):
-        index = limbSeq[i]
-        color = color_list[index[0]]
-
-        x = kps[index][:, 0]
-        y = kps[index][:, 1]
-        length = ((x[0] - x[1]) ** 2 + (y[0] - y[1]) ** 2) ** 0.5
-        angle = math.degrees(math.atan2(y[0] - y[1], x[0] - x[1]))
-        polygon = cv2.ellipse2Poly(
-            (int(np.mean(x)), int(np.mean(y))), (int(length / 2), stickwidth), int(angle), 0, 360, 1
-        )
-        out_img = cv2.fillConvexPoly(out_img.copy(), polygon, color)
-    out_img = (out_img * 0.6).astype(np.uint8)
-
-    for idx_kp, kp in enumerate(kps):
-        color = color_list[idx_kp]
-        x, y = kp
-        out_img = cv2.circle(out_img.copy(), (int(x), int(y)), 10, color, -1)
-
-    out_img_pil = PIL.Image.fromarray(out_img.astype(np.uint8))
-    return out_img_pil
-
-
-def process_image(image, vae):
-    image_noise_sigma = torch.normal(mean=-3.0, std=0.5, size=(1,), device=image.device)
-    image_noise_sigma = torch.exp(image_noise_sigma).to(dtype=image.dtype)
-    noisy_image = torch.randn_like(image) * image_noise_sigma[:, None, None, None, None]
-    input_image = image + noisy_image
-    image_latent_dist = vae.encode(input_image).latent_dist
-    return image_latent_dist
 
 
 # Similar to diffusers.pipelines.hunyuandit.pipeline_hunyuandit.get_resize_crop_region_for_grid

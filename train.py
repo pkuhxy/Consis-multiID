@@ -1,8 +1,16 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# Copyright 2024 ConsisID Authors and The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import os
 import math
@@ -25,8 +33,7 @@ from transformers.utils import ContextManagers
 from transformers import AutoTokenizer, T5EncoderModel
 from accelerate import Accelerator
 from accelerate.logging import get_logger
-from accelerate.utils import DistributedDataParallelKwargs, InitProcessGroupKwargs, ProjectConfiguration, set_seed, DistributedType
-from accelerate.utils import DistributedType, ProjectConfiguration, set_seed
+from accelerate.utils import DistributedDataParallelKwargs, InitProcessGroupKwargs, ProjectConfiguration, DistributedType, set_seed
 
 import diffusers
 from diffusers.training_utils import EMAModel
@@ -51,7 +58,7 @@ from models.pipeline_consisid import ConsisIDPipeline
 from models.pipeline_cogvideox import CogVideoXPipeline
 from models.utils import process_face_embeddings, compute_prompt_embeddings, prepare_rotary_positional_embeddings, draw_kps, tensor_to_pil
 from util.dataloader import ConsisID_Dataset, RandomSampler, SequentialSampler
-from util.utils import get_args, resize_mask, pixel_values_to_pil, save_tensor_as_image
+from util.utils import get_args, resize_mask, pixel_values_to_pil
 
 import threading
 lock = threading.Lock()
