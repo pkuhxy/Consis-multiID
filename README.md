@@ -91,27 +91,6 @@ python infer.py --model_path BestWishYsh/ConsisID-preview
 
 warning: It is worth noting that even if we use the same seed and prompt but we change a machine, the results will be different.
 
-### GPU Memory Optimization
-
-ConsisID requires about 44 GB of GPU memory to decode 49 frames (6 seconds of video at 8 FPS) with output resolution 720x480 (W x H), which makes it not possible to run on consumer GPUs or free-tier T4 Colab. The following memory optimizations could be used to reduce the memory footprint. For replication, you can refer to [this](https://gist.github.com/SHYuanBest/bc4207c36f454f9e969adbb50eaf8258) script.
-
-| Feature (overlay the previous) | Max Memory Allocated | Max Memory Reserved |
-| :----------------------------- | :------------------- | :------------------ |
-| -                              | 37 GB                | 44 GB               |
-| enable_model_cpu_offload       | 22 GB                | 25 GB               |
-| enable_sequential_cpu_offload  | 16 GB                | 22 GB               |
-| vae.enable_slicing             | 16 GB                | 22 GB               |
-| vae.enable_tiling              | 5 GB                 | 7 GB                |
-```bash
-# turn on if you don't have multiple GPUs or enough GPU memory(such as H100)
-pipe.enable_model_cpu_offload()
-pipe.enable_sequential_cpu_offload()
-pipe.vae.enable_slicing()
-pipe.vae.enable_tiling()
-```
-
-warning: it will cost more time in inference and may also reduce the quality.
-
 ### Prompt Refiner
 
 ConsisID has high requirements for prompt quality. You can use [GPT-4o](https://chatgpt.com/) to refine the input text prompt, an example is as follows (original prompt: "a man is playing guitar.")
@@ -124,6 +103,27 @@ The video features a man standing next to an airplane, engaged in a conversation
 ```
 
 Some sample prompts are available [here](https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/prompt.xlsx).
+
+### GPU Memory Optimization
+
+ConsisID requires about 44 GB of GPU memory to decode 49 frames (6 seconds of video at 8 FPS) with output resolution 720x480 (W x H), which makes it not possible to run on consumer GPUs or free-tier T4 Colab. The following memory optimizations could be used to reduce the memory footprint. For replication, you can refer to [this](https://gist.github.com/SHYuanBest/bc4207c36f454f9e969adbb50eaf8258) script.
+
+| Feature (overlay the previous) | Max Memory Allocated | Max Memory Reserved |
+| :----------------------------- | :------------------- | :------------------ |
+| -                              | 37 GB                | 44 GB               |
+| enable_model_cpu_offload       | 22 GB                | 25 GB               |
+| enable_sequential_cpu_offload  | 16 GB                | 22 GB               |
+| vae.enable_slicing             | 16 GB                | 22 GB               |
+| vae.enable_tiling              | 5 GB                 | 7 GB                |
+
+```bash
+# turn on if you don't have multiple GPUs or enough GPU memory(such as H100)
+pipe.enable_model_cpu_offload()
+pipe.enable_sequential_cpu_offload()
+pipe.vae.enable_slicing()
+pipe.vae.enable_tiling()
+```
+warning: it will cost more time in inference and may also reduce the quality.
 
 ## ⚙️ Requirements and Installation
 
