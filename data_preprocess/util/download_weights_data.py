@@ -1,7 +1,8 @@
 import os
+
 import requests
-from tqdm import tqdm
 from huggingface_hub import hf_hub_download, snapshot_download
+from tqdm import tqdm
 
 
 model_path = "../../ckpts"
@@ -16,10 +17,10 @@ def download_file(url, local_path):
         if local_file_size == remote_file_size:
             print(f"{os.path.basename(local_path)} already exists with the correct size, skipping download.")
             return
-    
+
     response = requests.head(url)
     file_size = int(response.headers.get('Content-Length', 0))
-    
+
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
         with open(local_path, 'wb') as f:

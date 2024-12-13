@@ -1,19 +1,18 @@
+import argparse
 import os
 import random
-import argparse
 
 import torch
-
-from diffusers.utils import export_to_video
-from diffusers.training_utils import free_memory
-from diffusers.image_processor import VaeImageProcessor
 from huggingface_hub import hf_hub_download, snapshot_download
+from diffusers.image_processor import VaeImageProcessor
+from diffusers.training_utils import free_memory
+from diffusers.utils import export_to_video
 
-from models.utils import process_face_embeddings_infer, prepare_face_models
-from models.transformer_consisid import ConsisIDTransformer3DModel
+from models.consisid_utils import prepare_face_models, process_face_embeddings_infer
 from models.pipeline_consisid import ConsisIDPipeline
-from util.utils import *
+from models.transformer_consisid import ConsisIDTransformer3DModel
 from util.rife_model import load_rife_model, rife_inference_with_latents
+from util.utils import load_sd_upscale, upscale_batch_and_concatenate
 
 def get_random_seed():
     return random.randint(0, 2**32 - 1)
@@ -56,14 +55,14 @@ def generate_video(
     # 0. Pre config
     device = "cuda"
 
-    if not os.path.exists(output_path): 
+    if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
-    
+
     if os.path.exists(os.path.join(model_path, "transformer_ema")):
         subfolder = "transformer_ema"
     else:
         subfolder = "transformer"
-        
+
 
     # 1. Prepare all the face models
     face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std = prepare_face_models(model_path, device, dtype)
@@ -87,16 +86,13 @@ def generate_video(
     pipe.enable_sequential_cpu_offload()
     # pipe.vae.enable_slicing()
     # pipe.vae.enable_tiling()
-    
+
 
     # 4. Prepare model input
-    id_cond, id_vit_hidden, image, face_kps = process_face_embeddings_infer(face_helper_1, face_clip_model, face_helper_2, 
-                                                                            eva_transform_mean, eva_transform_std, 
-                                                                            face_main_model, device, dtype, 
+    id_cond, id_vit_hidden, image, face_kps = process_face_embeddings_infer(face_helper_1, face_clip_model, face_helper_2,
+                                                                            eva_transform_mean, eva_transform_std,
+                                                                            face_main_model, device, dtype,
                                                                             img_file_path, is_align_face=True)
-
-    is_kps = getattr(pipe.transformer.config, 'is_kps', False)
-    kps_cond = face_kps if is_kps else None
 
     prompt = prompt.strip('"')
     if negative_prompt:
@@ -117,10 +113,10 @@ def generate_video(
         generator=generator,
         id_vit_hidden=id_vit_hidden,
         id_cond=id_cond,
-        kps_cond=kps_cond,
+        kps_cond=face_kps,
         output_type="pt",
     ).frames
-    
+
     del pipe
     del transformer
     free_memory()
@@ -174,21 +170,21 @@ if __name__ == "__main__":
     parser.add_argument("--is_frame_interpolation", action='store_true', help="Enable frame interpolation to increase frame rate if this flag is set.")
 
     args = parser.parse_args()
-    
+
     if not os.path.exists(args.model_path):
-        print(f"Base Model not found, downloading from Hugging Face...")
+        print("Base Model not found, downloading from Hugging Face...")
         snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir=args.model_path)
     else:
         print(f"Base Model already exists in {args.model_path}, skipping download.")
-    
+
     if args.is_upscale and not os.path.exists(f"{args.model_path}/model_rife"):
-        print(f"Upscale Model not found, downloading from Hugging Face...")
+        print("Upscale Model not found, downloading from Hugging Face...")
         snapshot_download(repo_id="AlexWortega/RIFE", local_dir=f"{args.model_path}/model_rife")
     else:
         print(f"Upscale Model already exists in {args.model_path}, skipping download.")
 
     if args.is_frame_interpolation and not os.path.exists(f"{args.model_path}/model_real_esran"):
-        print(f"Frame Interpolation Model not found, downloading from Hugging Face...")
+        print("Frame Interpolation Model not found, downloading from Hugging Face...")
         hf_hub_download(repo_id="ai-forever/Real-ESRGAN", filename="RealESRGAN_x4.pth", local_dir=f"{args.model_path}/model_real_esran")
     else:
         print(f"Frame Interpolation Model already exists in {args.model_path}, skipping download.")

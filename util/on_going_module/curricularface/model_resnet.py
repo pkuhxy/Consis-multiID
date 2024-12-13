@@ -1,8 +1,7 @@
 # The implementation is adopted from TFace,made pubicly available under the Apache-2.0 license at
 # https://github.com/Tencent/TFace/blob/master/recognition/torchkit/backbone/model_resnet.py
 import torch.nn as nn
-from torch.nn import (BatchNorm1d, BatchNorm2d, Conv2d, Dropout, Linear,
-                      MaxPool2d, Module, ReLU, Sequential)
+from torch.nn import BatchNorm1d, BatchNorm2d, Conv2d, Dropout, Linear, MaxPool2d, Module, ReLU, Sequential
 
 from .common import initialize_weights
 

@@ -1,13 +1,16 @@
-import torch
-from diffusers.image_processor import VaeImageProcessor
-from torch.nn import functional as F
-import cv2
-from util.utils import *
-from util.rife.pytorch_msssim import ssim_matlab
-import numpy as np
 import logging
+
+import cv2
+import numpy as np
 import skvideo.io
+import torch
+from torch.nn import functional as F
+from util.rife.pytorch_msssim import ssim_matlab
 from util.rife.RIFE_HDv3 import Model
+from util.utils import *
+
+from diffusers.image_processor import VaeImageProcessor
+
 
 logger = logging.getLogger(__name__)
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -47,7 +50,7 @@ def ssim_interpolation_rife(model, samples, exp=1, upscale_amount=1, output_devi
 
         I0 = samples[b : b + 1]
         I1 = samples[b + 1 : b + 2] if b + 2 < samples.shape[0] else samples[-1:]
-        
+
         I0 = I0.to(torch.float)
         I1 = I1.to(torch.float)
 
@@ -74,7 +77,7 @@ def ssim_interpolation_rife(model, samples, exp=1, upscale_amount=1, output_devi
         for tmp_frame in tmp_output:
             tmp_frame = F.interpolate(tmp_frame, size=(h, w))
             output.append(tmp_frame.to(output_device))
-        
+
         pbar.update(1)
 
     return output

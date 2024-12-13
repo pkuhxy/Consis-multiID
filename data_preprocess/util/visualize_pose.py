@@ -1,5 +1,7 @@
-import cv2
 import json
+
+import cv2
+
 
 # Constants
 annotations_path = 'your.json'
@@ -11,11 +13,11 @@ def draw_pose(frame, annotations):
     for annotation in annotations:
         # Draw bounding box
         box = annotation['box']
-        cv2.rectangle(frame, 
-                      (int(box['x1']), int(box['y1'])), 
-                      (int(box['x2']), int(box['y2'])), 
+        cv2.rectangle(frame,
+                      (int(box['x1']), int(box['y1'])),
+                      (int(box['x2']), int(box['y2'])),
                       (0, 255, 0), 2)  # Green for bbox
-        
+
         # Draw keypoints
         keypoints = annotation['keypoints']
         for x, y, v in zip(keypoints['x'], keypoints['y'], keypoints['visible']):

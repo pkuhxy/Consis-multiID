@@ -24,12 +24,12 @@ from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.loaders import CogVideoXLoraLoaderMixin
 from diffusers.models import AutoencoderKLCogVideoX, CogVideoXTransformer3DModel
 from diffusers.models.embeddings import get_3d_rotary_pos_embed
+from diffusers.pipelines.cogvideo.pipeline_output import CogVideoXPipelineOutput
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import CogVideoXDDIMScheduler, CogVideoXDPMScheduler
 from diffusers.utils import logging, replace_example_docstring
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.video_processor import VideoProcessor
-from diffusers.pipelines.cogvideo.pipeline_output import CogVideoXPipelineOutput
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -690,7 +690,7 @@ class CogVideoXPipeline(DiffusionPipeline, CogVideoXLoraLoaderMixin):
                     image_rotary_emb=image_rotary_emb,
                     attention_kwargs=attention_kwargs,
                     return_dict=False,
-                    id_vit_hidden = id_vit_hidden, 
+                    id_vit_hidden = id_vit_hidden,
                     id_cond = id_cond,
                 )[0]
                 noise_pred = noise_pred.float()

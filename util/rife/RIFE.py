@@ -1,10 +1,12 @@
-from torch.optim import AdamW
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.optim import AdamW
+
 from .IFNet import *
 from .IFNet_m import *
-from .loss import *
 from .laplacian import *
+from .loss import *
 from .refine import *
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

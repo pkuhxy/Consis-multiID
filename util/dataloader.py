@@ -1,28 +1,29 @@
-import os
 import gc
-import cv2
 import json
 import math
-import decord
+import os
 import random
-import numpy as np
-from PIL import Image
-from tqdm import tqdm
-from decord import VideoReader
+import threading
 from contextlib import contextmanager
-from func_timeout import FunctionTimedOut
-from typing import Optional, Sized, Iterator
+from typing import Iterator, Optional, Sized
 
+import cv2
+import decord
+import numpy as np
 import torch
-from torch.utils.data import Dataset, Sampler
 import torch.nn.functional as F
-from torchvision.transforms import ToPILImage
-from torchvision import transforms
 from accelerate.logging import get_logger
+from decord import VideoReader
+from func_timeout import FunctionTimedOut
+from PIL import Image
+from torch.utils.data import Dataset, Sampler
+from torchvision import transforms
+from torchvision.transforms import ToPILImage
+from tqdm import tqdm
+
 
 logger = get_logger(__name__)
 
-import threading
 log_lock = threading.Lock()
 
 def log_error_to_file(error_message, video_path):
@@ -71,7 +72,7 @@ def VideoReader_contextmanager(*args, **kwargs):
 
 def get_valid_segments(valid_frame, tolerance=5):
     valid_positions = sorted(set(valid_frame['face']).union(set(valid_frame['head'])))
-    
+
     valid_segments = []
     current_segment = [valid_positions[0]]
 
@@ -92,7 +93,7 @@ def get_frame_indices_adjusted_for_face(valid_frames, n_frames):
     valid_length = len(valid_frames)
     if valid_length >= n_frames:
         return valid_frames[:n_frames]
-    
+
     additional_frames_needed = n_frames - valid_length
     repeat_indices = []
 
@@ -104,11 +105,11 @@ def get_frame_indices_adjusted_for_face(valid_frames, n_frames):
     all_indices.sort()
 
     return all_indices
-        
-            
+
+
 def generate_frame_indices_for_face(n_frames, sample_stride, valid_frame, tolerance=7, skip_frames_start_percent=0.0, skip_frames_end_percent=1.0, skip_frames_start=0, skip_frames_end=0):
     valid_segments = get_valid_segments(valid_frame, tolerance)
-    selected_segment = max(valid_segments, key=len) 
+    selected_segment = max(valid_segments, key=len)
 
     valid_length = len(selected_segment)
     if skip_frames_start_percent != 0.0 or skip_frames_end_percent != 1.0:
@@ -131,11 +132,11 @@ def generate_frame_indices_for_face(n_frames, sample_stride, valid_frame, tolera
         if adjusted_length <= 0:
             print(f"video_length: {valid_length}, adjusted_length: {adjusted_length}, valid_start:{valid_start}, skip_frames_end: {valid_end}")
             raise ValueError("Skipping too many frames results in no frames left to sample.")
-        
+
         clip_length = min(adjusted_length, (n_frames - 1) * sample_stride + 1)
         start_idx_position = random.randint(valid_start, valid_end - clip_length)
         start_frame = selected_segment[start_idx_position]
-        
+
         selected_frames = []
         for i in range(n_frames):
             next_frame = start_frame + i * sample_stride
@@ -143,29 +144,29 @@ def generate_frame_indices_for_face(n_frames, sample_stride, valid_frame, tolera
                 selected_frames.append(next_frame)
             else:
                 break
-        
+
         if len(selected_frames) < n_frames:
             return get_frame_indices_adjusted_for_face(selected_frames, n_frames), len(selected_frames)
-        
+
         return selected_frames, len(selected_frames)
 
 def frame_has_required_confidence(bbox_data, frame, ID, conf_threshold=0.88):
     frame_str = str(frame)
     if frame_str not in bbox_data:
         return False
-    
+
     frame_data = bbox_data[frame_str]
-    
+
     face_conf = any(
         item['confidence'] > conf_threshold and item['new_track_id'] == ID
         for item in frame_data.get('face', [])
     )
-    
+
     head_conf = any(
         item['confidence'] > conf_threshold and item['new_track_id'] == ID
         for item in frame_data.get('head', [])
     )
-    
+
     return face_conf and head_conf
 
 def select_mask_frames_from_index(batch_frame, original_batch_frame, valid_id, corresponding_data, control_sam2_frame,
@@ -440,7 +441,7 @@ def crop_images(selected_frame_index, selected_bboxs_dict, video_reader, return_
             original_cropped_rgb = Image.fromarray(np.array(original_cropped_rgb_tensor)).convert('RGB')
             original_cropped_images.append(original_cropped_rgb)
             return expanded_cropped_images, original_cropped_images
-        
+
     return expanded_cropped_images, None
 
 def process_cropped_images(expand_images_pil, original_images_pil, target_size=(480, 480)):
@@ -547,7 +548,7 @@ class RandomSampler(Sampler[int]):
 
     def __len__(self) -> int:
         return self.num_samples
-    
+
 class SequentialSampler(Sampler[int]):
     r"""Samples elements sequentially, always in the same order.
 
@@ -579,7 +580,7 @@ class ConsisID_Dataset(Dataset):
             height=480,
             width=640,
             max_num_frames=49,
-            sample_stride=3,  
+            sample_stride=3,
             skip_frames_start_percent=0.0,
             skip_frames_end_percent=1.0,
             skip_frames_start=0,
@@ -593,9 +594,9 @@ class ConsisID_Dataset(Dataset):
             max_frames=5,
             is_cross_face=False,
             is_reserve_face=False,
-    ):  
+    ):
         self.id_token = id_token or ""
-        
+
         # ConsisID
         self.skip_frames_start_percent = skip_frames_start_percent
         self.skip_frames_end_percent   = skip_frames_end_percent
@@ -611,7 +612,7 @@ class ConsisID_Dataset(Dataset):
             self.max_frames         = max_frames
             self.is_cross_face      = is_cross_face
             self.is_reserve_face    = is_reserve_face
-        
+
         # Loading annotations from files
         print(f"loading annotations from {instance_data_root} ...")
         with open(instance_data_root, 'r') as f:
@@ -633,10 +634,10 @@ class ConsisID_Dataset(Dataset):
 
                 if fps * duration < 49.0:
                     continue
-                
+
                 self.instance_prompts.append(cap)
                 self.instance_video_paths.append(path)
-        
+
         self.num_instance_videos = len(self.instance_video_paths)
 
         self.text_drop_ratio = text_drop_ratio
@@ -741,7 +742,7 @@ class ConsisID_Dataset(Dataset):
                 frames (torch.Tensor): Input frames of shape [T, H, W, C].
                 target_width (int): Desired width.
                 target_height (int): Desired height.
-            
+
             Returns:
                 torch.Tensor: Resized and padded frames of shape [T, target_height, target_width, C].
         """
@@ -773,8 +774,8 @@ class ConsisID_Dataset(Dataset):
         frames = frames.permute(0, 2, 3, 1)  # [T, H, W, C]
 
         return frames
-    
-    
+
+
     def _save_frame(self, frame, name="1.png"):
         # [H, W, C] -> [C, H, W]
         img = frame
@@ -785,11 +786,11 @@ class ConsisID_Dataset(Dataset):
 
 
     def _save_video(self, torch_frames, name="output.mp4"):
-        from moviepy.editor import ImageSequenceClip
+        from moviepy import ImageSequenceClip
         frames_np = torch_frames.cpu().numpy()
         if frames_np.dtype != 'uint8':
             frames_np = frames_np.astype('uint8')
-        frames_list = [frame for frame in frames_np]
+        frames_list = list(frames_np)
         desired_fps = 24
         clip = ImageSequenceClip(frames_list, fps=desired_fps)
         clip.write_videofile(name, codec="libx264")
@@ -797,9 +798,9 @@ class ConsisID_Dataset(Dataset):
 
     def get_batch(self, idx):
         decord.bridge.set_bridge("torch")
-        
+
         video_dir = self.instance_video_paths[idx]
-        text = self.instance_prompts[idx]            
+        text = self.instance_prompts[idx]
 
         train_transforms = transforms.Compose(
             [
@@ -809,18 +810,18 @@ class ConsisID_Dataset(Dataset):
 
         with VideoReader_contextmanager(video_dir, num_threads=2) as video_reader:
             video_num_frames = len(video_reader)
-            
+
             if self.is_train_face:
                 reserve_face_imgs = None
                 file_base_name = os.path.basename(video_dir.replace(".mp4", ""))
-                
+
                 anno_base_path = self.instance_annotation_base_paths[idx]
                 valid_frame_path = os.path.join(anno_base_path, "track_masks_data", file_base_name, "valid_frame.json")
                 control_sam2_frame_path = os.path.join(anno_base_path, "track_masks_data", file_base_name, "control_sam2_frame.json")
                 corresponding_data_path = os.path.join(anno_base_path, "track_masks_data", file_base_name, "corresponding_data.json")
                 masks_data_path = os.path.join(anno_base_path, "track_masks_data", file_base_name, "tracking_mask_results")
                 bboxs_data_path = os.path.join(anno_base_path, "refine_bbox_jsons", f"{file_base_name}.json")
-                
+
                 with open(corresponding_data_path, 'r') as f:
                     corresponding_data = json.load(f)
 
@@ -837,7 +838,7 @@ class ConsisID_Dataset(Dataset):
                     if len(corresponding_data) != 1:
                         raise ValueError(f"Using single face, but {idx} is multi person.")
 
-                # get random valid id 
+                # get random valid id
                 valid_ids = []
                 backup_ids = []
                 for id_key, data in corresponding_data.items():
@@ -850,29 +851,29 @@ class ConsisID_Dataset(Dataset):
 
                 # get video
                 total_index = list(range(video_num_frames))
-                batch_index, _ = generate_frame_indices_for_face(self.max_num_frames, self.sample_stride, valid_frame[valid_id], 
+                batch_index, _ = generate_frame_indices_for_face(self.max_num_frames, self.sample_stride, valid_frame[valid_id],
                                                                           self.miss_tolerance, self.skip_frames_start_percent, self.skip_frames_end_percent,
                                                                           self.skip_frames_start, self.skip_frames_end)
-                
+
                 if self.is_cross_face:
                     remaining_batch_index_index = [i for i in total_index if i not in batch_index]
                     try:
                         selected_frame_index, selected_masks_dict, selected_bboxs_dict, dense_masks_dict = select_mask_frames_from_index(
                                                                                                                             remaining_batch_index_index,
                                                                                                                             batch_index, valid_id,
-                                                                                                                            corresponding_data, control_sam2_frame, 
-                                                                                                                            valid_frame[valid_id], bbox_data, masks_data_path, 
-                                                                                                                            min_distance=self.min_distance, min_frames=self.min_frames, 
+                                                                                                                            corresponding_data, control_sam2_frame,
+                                                                                                                            valid_frame[valid_id], bbox_data, masks_data_path,
+                                                                                                                            min_distance=self.min_distance, min_frames=self.min_frames,
                                                                                                                             max_frames=self.max_frames, dense_masks=True,
                                                                                                                             ensure_control_frame=False,
                                                                                                                         )
-                    except:
+                    except (ValueError, TypeError):
                         selected_frame_index, selected_masks_dict, selected_bboxs_dict, dense_masks_dict = select_mask_frames_from_index(
                                                                                                                             batch_index,
                                                                                                                             batch_index, valid_id,
-                                                                                                                            corresponding_data, control_sam2_frame, 
-                                                                                                                            valid_frame[valid_id], bbox_data, masks_data_path, 
-                                                                                                                            min_distance=self.min_distance, min_frames=self.min_frames, 
+                                                                                                                            corresponding_data, control_sam2_frame,
+                                                                                                                            valid_frame[valid_id], bbox_data, masks_data_path,
+                                                                                                                            min_distance=self.min_distance, min_frames=self.min_frames,
                                                                                                                             max_frames=self.max_frames, dense_masks=True,
                                                                                                                             ensure_control_frame=False,
                                                                                                                         )
@@ -880,9 +881,9 @@ class ConsisID_Dataset(Dataset):
                     selected_frame_index, selected_masks_dict, selected_bboxs_dict, dense_masks_dict = select_mask_frames_from_index(
                                                                                                                         batch_index,
                                                                                                                         batch_index, valid_id,
-                                                                                                                        corresponding_data, control_sam2_frame, 
-                                                                                                                        valid_frame[valid_id], bbox_data, masks_data_path, 
-                                                                                                                        min_distance=self.min_distance, min_frames=self.min_frames, 
+                                                                                                                        corresponding_data, control_sam2_frame,
+                                                                                                                        valid_frame[valid_id], bbox_data, masks_data_path,
+                                                                                                                        min_distance=self.min_distance, min_frames=self.min_frames,
                                                                                                                         max_frames=self.max_frames, dense_masks=True,
                                                                                                                         ensure_control_frame=True,
                                                                                                                     )
@@ -890,13 +891,13 @@ class ConsisID_Dataset(Dataset):
                         reserve_frame_index, _, reserve_bboxs_dict, _ = select_mask_frames_from_index(
                                                                         batch_index,
                                                                         batch_index, valid_id,
-                                                                        corresponding_data, control_sam2_frame, 
-                                                                        valid_frame[valid_id], bbox_data, masks_data_path, 
-                                                                        min_distance=3, min_frames=4, 
+                                                                        corresponding_data, control_sam2_frame,
+                                                                        valid_frame[valid_id], bbox_data, masks_data_path,
+                                                                        min_distance=3, min_frames=4,
                                                                         max_frames=4, dense_masks=False,
                                                                         ensure_control_frame=False,
                                                                     )
-                
+
                 # get mask and aligned_face_img
                 selected_frame_index = selected_frame_index[valid_id]
                 valid_frame = valid_frame[valid_id]
@@ -908,7 +909,6 @@ class ConsisID_Dataset(Dataset):
                     reserve_frame_index = reserve_frame_index[valid_id]
                     reserve_bboxs_dict = reserve_bboxs_dict[valid_id]
 
-                selected_masks_tensor = torch.stack([torch.tensor(mask) for mask in selected_masks_dict])
                 temp_dense_masks_tensor = torch.stack([torch.tensor(mask) for mask in dense_masks_dict])
                 dense_masks_tensor = self._short_resize_and_crop(temp_dense_masks_tensor.unsqueeze(-1), self.width, self.height).squeeze(-1)  # [T, H, W] -> [T, H, W, 1] -> [T, H, W]
 
@@ -917,10 +917,10 @@ class ConsisID_Dataset(Dataset):
                 if self.is_reserve_face:
                     reserve_images_pil, _ = crop_images(reserve_frame_index, reserve_bboxs_dict, video_reader, return_ori=False)
                     reserve_face_imgs, _ = process_cropped_images(reserve_images_pil, [], target_size=(480, 480))
-                
+
                 if len(expand_face_imgs) == 0 or len(original_face_imgs) == 0:
-                    raise ValueError(f"No face detected in input image pool")
-                       
+                    raise ValueError("No face detected in input image pool")
+
                 # post process id related data
                 expand_face_imgs = pad_tensor(expand_face_imgs, self.max_frames, dim=0)
                 original_face_imgs = pad_tensor(original_face_imgs, self.max_frames, dim=0)
@@ -930,7 +930,7 @@ class ConsisID_Dataset(Dataset):
                 batch_index = self._generate_frame_indices(video_num_frames, self.max_num_frames, self.sample_stride,
                                                             self.skip_frames_start_percent, self.skip_frames_end_percent,
                                                             self.skip_frames_start, self.skip_frames_end)
-                
+
             try:
                 frames = video_reader.get_batch(batch_index) # torch [T, H, W, C]
                 frames = self._short_resize_and_crop(frames, self.width, self.height)  # [T, H, W, C]
@@ -948,7 +948,7 @@ class ConsisID_Dataset(Dataset):
             # Random use no text generation
             if random.random() < self.text_drop_ratio:
                 text = ''
-        
+
         if self.is_train_face:
             return pixel_values, text, 'video', video_dir, expand_face_imgs, dense_masks_tensor, selected_frame_index, reserve_face_imgs, original_face_imgs
         else:

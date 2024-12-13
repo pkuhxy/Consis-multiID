@@ -1,5 +1,7 @@
 import os
+
 from huggingface_hub import snapshot_download
+
 
 model_path = "../../ckpts"
 

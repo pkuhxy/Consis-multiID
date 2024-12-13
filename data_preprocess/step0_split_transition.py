@@ -1,12 +1,14 @@
 
+import argparse
 import os
 import shutil
-import argparse
 import threading
-from tqdm import tqdm
-from scenedetect.detectors import AdaptiveDetector
-from scenedetect import open_video, SceneManager, split_video_ffmpeg
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from scenedetect import SceneManager, open_video, split_video_ffmpeg
+from scenedetect.detectors import AdaptiveDetector
+from tqdm import tqdm
+
 
 file_lock = threading.Lock()
 
@@ -55,8 +57,8 @@ def split_video_into_scenes(video_path, output_video_folder, processed_videos, p
             output_video_path = os.path.join(output_video_folder, f"{video_name}-Scene-{i+1:03d}.mp4")
             split_video_ffmpeg(video_path, scene_list, output_video_folder, output_file_template='$VIDEO_NAME-Scene-$SCENE_NUMBER.mp4', show_progress=False)
             output_files.append(output_video_path)
-        
-    all_files_exist = all([os.path.exists(file) for file in output_files])
+
+    all_files_exist = all(os.path.exists(file) for file in output_files)
 
     if all_files_exist:
         with file_lock:

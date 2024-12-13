@@ -1,22 +1,22 @@
-import os
 import math
-import time
-import spaces
+import os
 import random
 import threading
-import gradio as gr
-from moviepy import VideoFileClip
+import time
 from datetime import datetime, timedelta
-from huggingface_hub import hf_hub_download, snapshot_download
 
+import gradio as gr
+import spaces
 import torch
+from huggingface_hub import hf_hub_download, snapshot_download
+from models.consisid_utils import prepare_face_models, process_face_embeddings_infer
+from models.pipeline_consisid import ConsisIDPipeline
+from moviepy import VideoFileClip
+from util.rife_model import load_rife_model, rife_inference_with_latents
+from util.utils import load_sd_upscale, save_video, upscale_batch_and_concatenate
+
 from diffusers.image_processor import VaeImageProcessor
 from diffusers.training_utils import free_memory
-
-from util.utils import *
-from util.rife_model import load_rife_model, rife_inference_with_latents
-from models.utils import process_face_embeddings_infer, prepare_face_models
-from models.pipeline_consisid import ConsisIDPipeline
 
 
 # 0. Pre config
@@ -28,13 +28,13 @@ dtype = torch.bfloat16
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 if not os.path.exists(model_path) or not os.path.exists(f"{model_path}/model_real_esran") or not os.path.exists(f"{model_path}/model_rife"):
-    print(f"Model not found, downloading from Hugging Face...")
+    print("Model not found, downloading from Hugging Face...")
     hf_hub_download(repo_id="ai-forever/Real-ESRGAN", filename="RealESRGAN_x4.pth", local_dir=f"{model_path}/model_real_esran")
     snapshot_download(repo_id="AlexWortega/RIFE", local_dir=f"{model_path}/model_rife")
     snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir=f"{model_path}")
 else:
     print(f"Model already exists in {model_path}, skipping download.")
-    
+
 
 # 1. Prepare all the face models
 face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std = prepare_face_models(model_path, device, dtype)
@@ -79,18 +79,15 @@ def generate(
         seed = random.randint(0, 2**8 - 1)
 
     # 4. Prepare model input
-    id_cond, id_vit_hidden, image, face_kps = process_face_embeddings_infer(face_helper_1, face_clip_model, face_helper_2, 
-                                                                            eva_transform_mean, eva_transform_std, 
-                                                                            face_main_model, device, dtype, 
+    id_cond, id_vit_hidden, image, face_kps = process_face_embeddings_infer(face_helper_1, face_clip_model, face_helper_2,
+                                                                            eva_transform_mean, eva_transform_std,
+                                                                            face_main_model, device, dtype,
                                                                             image_input, is_align_face=True)
-
-    is_kps = getattr(pipe.transformer.config, 'is_kps', False)
-    kps_cond = face_kps if is_kps else None
 
     prompt = prompt.strip('"')
     if negative_prompt:
         negative_prompt = negative_prompt.strip('"')
-    
+
     # 5. Generate Identity-Preserving Video
     generator = torch.Generator(device).manual_seed(seed) if seed else None
     video_pt = pipe(
@@ -105,12 +102,12 @@ def generate(
         generator=generator,
         id_vit_hidden=id_vit_hidden,
         id_cond=id_cond,
-        kps_cond=kps_cond,
+        kps_cond=face_kps,
         output_type="pt",
     ).frames
-    
+
     free_memory()
-    
+
     if scale_status:
         video_pt = upscale_batch_and_concatenate(upscale_model, video_pt, device)
     if rife_status:
@@ -302,7 +299,7 @@ with gr.Blocks() as demo:
             seed=seed_value,
             scale_status=scale_status,
             rife_status=rife_status,
-        )   
+        )
 
         video_path = save_video(batch_video_frames[0], fps=math.ceil((len(batch_video_frames[0]) - 1) / 6))
         video_update = gr.update(visible=True, value=video_path)
@@ -311,13 +308,13 @@ with gr.Blocks() as demo:
         seed_update = gr.update(visible=True, value=seed)
 
         return video_path, video_update, gif_update, seed_update
-    
+
     generate_button.click(
         fn=run,
         inputs=[prompt, negative_prompt, image_input, seed_param, enable_scale, enable_rife],
         outputs=[video_output, download_video_button, download_gif_button, seed_text],
     )
- 
+
 
 if __name__ == "__main__":
     demo.queue(max_size=15)

@@ -2,8 +2,7 @@
 # https://github.com/Tencent/TFace/blob/master/recognition/torchkit/backbone/model_irse.py
 from collections import namedtuple
 
-from torch.nn import (BatchNorm1d, BatchNorm2d, Conv2d, Dropout, Linear,
-                      MaxPool2d, Module, PReLU, Sequential)
+from torch.nn import BatchNorm1d, BatchNorm2d, Conv2d, Dropout, Linear, MaxPool2d, Module, PReLU, Sequential
 
 from .common import Flatten, SEModule, initialize_weights
 
@@ -200,10 +199,10 @@ class Backbone(Module):
 
     def device(self):
         return next(self.parameters()).device
-    
+
     def dtype(self):
         return next(self.parameters()).dtype
-    
+
     def forward(self, x, return_mid_feats=False):
         x = self.input_layer(x)
         if not return_mid_feats:

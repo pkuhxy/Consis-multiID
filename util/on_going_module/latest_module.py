@@ -1,16 +1,15 @@
 from typing import Optional, Tuple
 
 import torch
-from torch import nn
 import torch.nn.functional as F
-from transformers import CLIPVisionModel
+from models.local_facial_extractor import PerceiverCrossAttention
+from torch import nn
 
 from diffusers.models.attention import Attention, FeedForward
 from diffusers.models.attention_processor import CogVideoXAttnProcessor2_0
 from diffusers.models.normalization import CogVideoXLayerNormZero
 
-from curricularface import get_model
-from models.local_facial_extractor import PerceiverCrossAttention
+
 # 1. The first difference is the way of obtaining local features
 def process_face_embeddings(face_imgs, clip_face_pre_values, face_main_model, face_clip_model):
     # face_clip_model = CLIPVisionModel.from_pretrained("laion/CLIP-ViT-H-14-laion2B-s32B-b79K")
@@ -69,7 +68,7 @@ def process_face_embeddings(face_imgs, clip_face_pre_values, face_main_model, fa
     structure_embeds = torch.cat(
         [mid_embedding_64_swapped, mid_embedding_128_swapped, mid_embedding_256_swapped, temp_structure_embeds],
         dim=2)  # [b, 256, 64+128+256+1280]
-    
+
     return structure_embeds, intrinsic_id_embeds, B_valid_num
 
 # 2. The second difference is the injection form of local features
@@ -178,7 +177,7 @@ class ConsisIDBlock(nn.Module):
         norm_hidden_states, norm_encoder_hidden_states, gate_msa, enc_gate_msa = self.norm1(
             hidden_states, encoder_hidden_states, temb
         )
-        
+
         # attention
         attn_hidden_states, attn_encoder_hidden_states = self.attn1(
             hidden_states=norm_hidden_states,

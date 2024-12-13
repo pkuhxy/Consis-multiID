@@ -16,30 +16,27 @@ import inspect
 import math
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import os
-import sys
+import cv2
+import numpy as np
 import PIL
 import torch
-from dataclasses import dataclass
 from transformers import T5EncoderModel, T5Tokenizer
 
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
-from diffusers.models import AutoencoderKLCogVideoX
+from diffusers.models import AutoencoderKLCogVideoX, ConsisIDTransformer3DModel
 from diffusers.models.embeddings import get_3d_rotary_pos_embed
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import CogVideoXDDIMScheduler, CogVideoXDPMScheduler
-from diffusers.utils import logging, replace_example_docstring, BaseOutput
+from diffusers.utils import (
+    logging,
+    replace_example_docstring,
+)
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.video_processor import VideoProcessor
 
-from models.transformer_consisid import ConsisIDTransformer3DModel
-from models.utils import draw_kps
+from .pipeline_output import ConsisIDPipelineOutput
 
-current_file_path = os.path.abspath(__file__)
-project_roots = [os.path.dirname(os.path.dirname(current_file_path))]
-for project_root in project_roots:
-    sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -49,7 +46,7 @@ EXAMPLE_DOC_STRING = """
         ```py
         >>> import torch
         >>> from diffusers import ConsisIDPipeline
-        >>> from diffusers.pipelines.consisid.util_consisid import prepare_face_models, process_face_embeddings_infer
+        >>> from diffusers.pipelines.consisid.consisid_utils import prepare_face_models, process_face_embeddings_infer
         >>> from diffusers.utils import export_to_video
         >>> from huggingface_hub import snapshot_download
 
@@ -76,16 +73,16 @@ EXAMPLE_DOC_STRING = """
         ...     image,
         ...     is_align_face=True,
         ... )
-        >>> is_kps = getattr(pipe.transformer.config, "is_kps", False)
-        >>> kps_cond = face_kps if is_kps else None
 
         >>> video = pipe(
         ...     image=image,
         ...     prompt=prompt,
+        ...     num_inference_steps=50,
+        ...     guidance_scale=6.0,
         ...     use_dynamic_cfg=False,
         ...     id_vit_hidden=id_vit_hidden,
         ...     id_cond=id_cond,
-        ...     kps_cond=kps_cond,
+        ...     kps_cond=face_kps,
         ...     generator=torch.Generator("cuda").manual_seed(42),
         ... )
         >>> export_to_video(video.frames[0], "output.mp4", fps=8)
@@ -93,8 +90,67 @@ EXAMPLE_DOC_STRING = """
 """
 
 
+def draw_kps(image_pil, kps, color_list=[(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]):
+    """
+    This function draws keypoints and the limbs connecting them on an image.
+
+    Parameters:
+    - image_pil (PIL.Image): Input image as a PIL object.
+    - kps (list of tuples): A list of keypoints where each keypoint is a tuple of (x, y) coordinates.
+    - color_list (list of tuples, optional): List of colors (in RGB format) for each keypoint. Default is a set of five
+      colors.
+
+    Returns:
+    - PIL.Image: Image with the keypoints and limbs drawn.
+    """
+
+    stickwidth = 4
+    limbSeq = np.array([[0, 2], [1, 2], [3, 2], [4, 2]])
+    kps = np.array(kps)
+
+    w, h = image_pil.size
+    out_img = np.zeros([h, w, 3])
+
+    for i in range(len(limbSeq)):
+        index = limbSeq[i]
+        color = color_list[index[0]]
+
+        x = kps[index][:, 0]
+        y = kps[index][:, 1]
+        length = ((x[0] - x[1]) ** 2 + (y[0] - y[1]) ** 2) ** 0.5
+        angle = math.degrees(math.atan2(y[0] - y[1], x[0] - x[1]))
+        polygon = cv2.ellipse2Poly(
+            (int(np.mean(x)), int(np.mean(y))), (int(length / 2), stickwidth), int(angle), 0, 360, 1
+        )
+        out_img = cv2.fillConvexPoly(out_img.copy(), polygon, color)
+    out_img = (out_img * 0.6).astype(np.uint8)
+
+    for idx_kp, kp in enumerate(kps):
+        color = color_list[idx_kp]
+        x, y = kp
+        out_img = cv2.circle(out_img.copy(), (int(x), int(y)), 10, color, -1)
+
+    out_img_pil = PIL.Image.fromarray(out_img.astype(np.uint8))
+    return out_img_pil
+
+
 # Similar to diffusers.pipelines.hunyuandit.pipeline_hunyuandit.get_resize_crop_region_for_grid
 def get_resize_crop_region_for_grid(src, tgt_width, tgt_height):
+    """
+    This function calculates the resize and crop region for an image to fit a target width and height while preserving
+    the aspect ratio.
+
+    Parameters:
+    - src (tuple): A tuple containing the source image's height (h) and width (w).
+    - tgt_width (int): The target width to resize the image.
+    - tgt_height (int): The target height to resize the image.
+
+    Returns:
+    - tuple: Two tuples representing the crop region:
+        1. The top-left coordinates of the crop region.
+        2. The bottom-right coordinates of the crop region.
+    """
+
     tw = tgt_width
     th = tgt_height
     h, w = src
@@ -121,7 +177,7 @@ def retrieve_timesteps(
     sigmas: Optional[List[float]] = None,
     **kwargs,
 ):
-    """
+    r"""
     Calls the scheduler's `set_timesteps` method and retrieves timesteps from the scheduler after the call. Handles
     custom timesteps. Any kwargs will be supplied to `scheduler.set_timesteps`.
 
@@ -186,21 +242,6 @@ def retrieve_latents(
         raise AttributeError("Could not access latents of provided encoder_output")
 
 
-@dataclass
-class ConsisIDPipelineOutput(BaseOutput):
-    r"""
-    Output class for ConsisID pipelines.
-
-    Args:
-        frames (`torch.Tensor`, `np.ndarray`, or List[List[PIL.Image.Image]]):
-            List of video outputs - It can be a nested list of length `batch_size,` with each sub-list containing
-            denoised PIL image sequences of length `num_frames.` It can also be a NumPy array or Torch tensor of shape
-            `(batch_size, num_frames, channels, height, width)`.
-    """
-
-    frames: torch.Tensor
-
-
 class ConsisIDPipeline(DiffusionPipeline):
     r"""
     Pipeline for image-to-video generation using ConsisID.
@@ -262,7 +303,7 @@ class ConsisIDPipeline(DiffusionPipeline):
 
         self.video_processor = VideoProcessor(vae_scale_factor=self.vae_scale_factor_spatial)
 
-    # Copied from diffusers.pipelines.consisid.pipeline_consisID.ConsisIDPipeline._get_t5_prompt_embeds
+    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline._get_t5_prompt_embeds
     def _get_t5_prompt_embeds(
         self,
         prompt: Union[str, List[str]] = None,
@@ -305,7 +346,7 @@ class ConsisIDPipeline(DiffusionPipeline):
 
         return prompt_embeds
 
-    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline.encode_prompt
+    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline.encode_prompt
     def encode_prompt(
         self,
         prompt: Union[str, List[str]],
@@ -472,7 +513,7 @@ class ConsisIDPipeline(DiffusionPipeline):
         latents = latents * self.scheduler.init_noise_sigma
         return latents, image_latents
 
-    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline.decode_latents
+    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline.decode_latents
     def decode_latents(self, latents: torch.Tensor) -> torch.Tensor:
         latents = latents.permute(0, 2, 1, 3, 4)  # [batch_size, num_channels, num_frames, height, width]
         latents = 1 / self.vae_scaling_factor_image * latents
@@ -571,13 +612,13 @@ class ConsisIDPipeline(DiffusionPipeline):
                     f" {negative_prompt_embeds.shape}."
                 )
 
-    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline.fuse_qkv_projections
+    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline.fuse_qkv_projections
     def fuse_qkv_projections(self) -> None:
         r"""Enables fused QKV projections."""
         self.fusing_transformer = True
         self.transformer.fuse_qkv_projections()
 
-    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline.unfuse_qkv_projections
+    # Copied from diffusers.pipelines.cogvideo.pipeline_cogvideox.CogVideoXPipeline.unfuse_qkv_projections
     def unfuse_qkv_projections(self) -> None:
         r"""Disable QKV projection fusion if enabled."""
         if not self.fusing_transformer:
@@ -586,7 +627,6 @@ class ConsisIDPipeline(DiffusionPipeline):
             self.transformer.unfuse_qkv_projections()
             self.fusing_transformer = False
 
-    # Copied from diffusers.pipelines.consisid.pipeline_consisid.ConsisIDPipeline._prepare_rotary_positional_embeddings
     def _prepare_rotary_positional_embeddings(
         self,
         height: int,
@@ -673,7 +713,7 @@ class ConsisIDPipeline(DiffusionPipeline):
                 The height in pixels of the generated image. This is set to 480 by default for the best results.
             width (`int`, *optional*, defaults to self.transformer.config.sample_height * self.vae_scale_factor_spatial):
                 The width in pixels of the generated image. This is set to 720 by default for the best results.
-            num_frames (`int`, defaults to `48`):
+            num_frames (`int`, defaults to `49`):
                 Number of frames to generate. Must be divisible by self.vae_scale_factor_temporal. Generated video will
                 contain 1 extra frame because ConsisID is conditioned with (num_seconds * fps + 1) frames where
                 num_seconds is 6 and fps is 4. However, since videos can be saved at any fps, the only condition that
@@ -685,7 +725,7 @@ class ConsisIDPipeline(DiffusionPipeline):
                 Custom timesteps to use for the denoising process with schedulers which support a `timesteps` argument
                 in their `set_timesteps` method. If not defined, the default behavior when `num_inference_steps` is
                 passed will be used. Must be in descending order.
-            guidance_scale (`float`, *optional*, defaults to 7.0):
+            guidance_scale (`float`, *optional*, defaults to 6):
                 Guidance scale as defined in [Classifier-Free Diffusion Guidance](https://arxiv.org/abs/2207.12598).
                 `guidance_scale` is defined as `w` of equation 2. of [Imagen
                 Paper](https://arxiv.org/pdf/2205.11487.pdf). Guidance scale is enabled by setting `guidance_scale >
@@ -792,6 +832,8 @@ class ConsisIDPipeline(DiffusionPipeline):
         self._num_timesteps = len(timesteps)
 
         # 5. Prepare latents
+        is_kps = getattr(self.transformer.config, "is_kps", False)
+        kps_cond = kps_cond if is_kps else None
         if kps_cond is not None:
             kps_cond = draw_kps(image, kps_cond)
             kps_cond = self.video_processor.preprocess(kps_cond, height=height, width=width).to(

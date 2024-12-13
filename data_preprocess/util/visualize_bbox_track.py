@@ -1,5 +1,7 @@
-import cv2
 import json
+
+import cv2
+
 
 annotations_path = 'your.json'
 input_video_path = 'your.mp4'

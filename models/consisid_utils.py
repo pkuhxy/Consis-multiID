@@ -1,166 +1,47 @@
 import os
-import cv2
-import math
-import numpy as np
-from PIL import Image, ImageOps
+from typing import List, Optional, Tuple, Union
 
+import cv2
+import insightface
+import numpy as np
 import torch
+from consisid_eva_clip import create_model_and_transforms
+from consisid_eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
+from facexlib.parsing import init_parsing_model
+from facexlib.utils.face_restoration_helper import FaceRestoreHelper
+from insightface.app import FaceAnalysis
+from PIL import Image, ImageOps
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms.functional import normalize, resize
 from transformers import T5EncoderModel, T5Tokenizer
-from typing import List, Optional, Tuple, Union
+
 from diffusers.models.embeddings import get_3d_rotary_pos_embed
 from diffusers.pipelines.cogvideo.pipeline_cogvideox import get_resize_crop_region_for_grid
 from diffusers.utils import load_image
 
-import insightface
-from insightface.app import FaceAnalysis
-from facexlib.parsing import init_parsing_model
-from facexlib.utils.face_restoration_helper import FaceRestoreHelper
 
-from models.eva_clip import create_model_and_transforms
-from models.eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
-from models.eva_clip.utils_qformer import resize_numpy_image_long
-   
-
-def _get_t5_prompt_embeds(
-    tokenizer: T5Tokenizer,
-    text_encoder: T5EncoderModel,
-    prompt: Union[str, List[str]],
-    num_videos_per_prompt: int = 1,
-    max_sequence_length: int = 226,
-    device: Optional[torch.device] = None,
-    dtype: Optional[torch.dtype] = None,
-    text_input_ids=None,
-):
-    prompt = [prompt] if isinstance(prompt, str) else prompt
-    batch_size = len(prompt)
-
-    if tokenizer is not None:
-        text_inputs = tokenizer(
-            prompt,
-            padding="max_length",
-            max_length=max_sequence_length,
-            truncation=True,
-            add_special_tokens=True,
-            return_tensors="pt",
-        )
-        text_input_ids = text_inputs.input_ids
-    else:
-        if text_input_ids is None:
-            raise ValueError("`text_input_ids` must be provided when the tokenizer is not specified.")
-
-    prompt_embeds = text_encoder(text_input_ids.to(device))[0]
-    prompt_embeds = prompt_embeds.to(dtype=dtype, device=device)
-
-    # duplicate text embeddings for each generation per prompt, using mps friendly method
-    _, seq_len, _ = prompt_embeds.shape
-    prompt_embeds = prompt_embeds.repeat(1, num_videos_per_prompt, 1)
-    prompt_embeds = prompt_embeds.view(batch_size * num_videos_per_prompt, seq_len, -1)
-
-    return prompt_embeds
-
-
-def encode_prompt(
-    tokenizer: T5Tokenizer,
-    text_encoder: T5EncoderModel,
-    prompt: Union[str, List[str]],
-    num_videos_per_prompt: int = 1,
-    max_sequence_length: int = 226,
-    device: Optional[torch.device] = None,
-    dtype: Optional[torch.dtype] = None,
-    text_input_ids=None,
-):
-    prompt = [prompt] if isinstance(prompt, str) else prompt
-    prompt_embeds = _get_t5_prompt_embeds(
-        tokenizer,
-        text_encoder,
-        prompt=prompt,
-        num_videos_per_prompt=num_videos_per_prompt,
-        max_sequence_length=max_sequence_length,
-        device=device,
-        dtype=dtype,
-        text_input_ids=text_input_ids,
-    )
-    return prompt_embeds
-
-
-def compute_prompt_embeddings(
-    tokenizer, text_encoder, prompt, max_sequence_length, device, dtype, requires_grad: bool = False
-):
-    if requires_grad:
-        prompt_embeds = encode_prompt(
-            tokenizer,
-            text_encoder,
-            prompt,
-            num_videos_per_prompt=1,
-            max_sequence_length=max_sequence_length,
-            device=device,
-            dtype=dtype,
-        )
-    else:
-        with torch.no_grad():
-            prompt_embeds = encode_prompt(
-                tokenizer,
-                text_encoder,
-                prompt,
-                num_videos_per_prompt=1,
-                max_sequence_length=max_sequence_length,
-                device=device,
-                dtype=dtype,
-            )
-    return prompt_embeds
-
-
-def prepare_rotary_positional_embeddings(
-    height: int,
-    width: int,
-    num_frames: int,
-    vae_scale_factor_spatial: int = 8,
-    patch_size: int = 2,
-    attention_head_dim: int = 64,
-    device: Optional[torch.device] = None,
-    base_height: int = 480,
-    base_width: int = 720,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    grid_height = height // (vae_scale_factor_spatial * patch_size)
-    grid_width = width // (vae_scale_factor_spatial * patch_size)
-    base_size_width = base_width // (vae_scale_factor_spatial * patch_size)
-    base_size_height = base_height // (vae_scale_factor_spatial * patch_size)
-
-    grid_crops_coords = get_resize_crop_region_for_grid((grid_height, grid_width), base_size_width, base_size_height)
-    freqs_cos, freqs_sin = get_3d_rotary_pos_embed(
-        embed_dim=attention_head_dim,
-        crops_coords=grid_crops_coords,
-        grid_size=(grid_height, grid_width),
-        temporal_size=num_frames,
-    )
-
-    freqs_cos = freqs_cos.to(device=device)
-    freqs_sin = freqs_sin.to(device=device)
-    return freqs_cos, freqs_sin
-
-
-def tensor_to_pil(src_img_tensor):
+###### pipeline ###
+def resize_numpy_image_long(image, resize_long_edge=768):
     """
-    Converts a tensor image to a PIL image.
+    Resize the input image to a specified long edge while maintaining aspect ratio.
 
-    Parameters:
-    - src_img_tensor (torch.Tensor): Input image tensor with shape (C, H, W), where C is the number of channels,
-      H is the height, and W is the width.
+    Args:
+        image (numpy.ndarray): Input image (H x W x C or H x W).
+        resize_long_edge (int): The target size for the long edge of the image. Default is 768.
 
     Returns:
-    - PIL.Image: Converted image in PIL format.
+        numpy.ndarray: Resized image with the long edge matching `resize_long_edge`, while maintaining the aspect
+        ratio.
     """
-    
-    img = src_img_tensor.clone().detach()
-    if img.dtype == torch.bfloat16:
-        img = img.to(torch.float32)
-    img = img.cpu().numpy()
-    img = np.transpose(img, (1, 2, 0))
-    img = img.astype(np.uint8)
-    pil_image = Image.fromarray(img)
-    return pil_image
+
+    h, w = image.shape[:2]
+    if max(h, w) <= resize_long_edge:
+        return image
+    k = resize_long_edge / max(h, w)
+    h = int(h * k)
+    w = int(w * k)
+    image = cv2.resize(image, (w, h), interpolation=cv2.INTER_LANCZOS4)
+    return image
 
 
 def img2tensor(imgs, bgr2rgb=True, float32=True):
@@ -206,49 +87,6 @@ def to_gray(img):
     x = 0.299 * img[:, 0:1] + 0.587 * img[:, 1:2] + 0.114 * img[:, 2:3]
     x = x.repeat(1, 3, 1, 1)
     return x
-
-
-def draw_kps(image_pil, kps, color_list=[(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]):
-    """
-    This function draws keypoints and the limbs connecting them on an image.
-
-    Parameters:
-    - image_pil (PIL.Image): Input image as a PIL object.
-    - kps (list of tuples): A list of keypoints where each keypoint is a tuple of (x, y) coordinates.
-    - color_list (list of tuples, optional): List of colors (in RGB format) for each keypoint. Default is a set of five colors.
-
-    Returns:
-    - PIL.Image: Image with the keypoints and limbs drawn.
-    """
-
-    stickwidth = 4
-    limbSeq = np.array([[0, 2], [1, 2], [3, 2], [4, 2]])
-    kps = np.array(kps)
-
-    w, h = image_pil.size
-    out_img = np.zeros([h, w, 3])
-
-    for i in range(len(limbSeq)):
-        index = limbSeq[i]
-        color = color_list[index[0]]
-
-        x = kps[index][:, 0]
-        y = kps[index][:, 1]
-        length = ((x[0] - x[1]) ** 2 + (y[0] - y[1]) ** 2) ** 0.5
-        angle = math.degrees(math.atan2(y[0] - y[1], x[0] - x[1]))
-        polygon = cv2.ellipse2Poly(
-            (int(np.mean(x)), int(np.mean(y))), (int(length / 2), stickwidth), int(angle), 0, 360, 1
-        )
-        out_img = cv2.fillConvexPoly(out_img.copy(), polygon, color)
-    out_img = (out_img * 0.6).astype(np.uint8)
-
-    for idx_kp, kp in enumerate(kps):
-        color = color_list[idx_kp]
-        x, y = kp
-        out_img = cv2.circle(out_img.copy(), (int(x), int(y)), 10, color, -1)
-
-    out_img_pil = Image.fromarray(out_img.astype(np.uint8))
-    return out_img_pil
 
 
 def process_face_embeddings(
@@ -502,3 +340,228 @@ def prepare_face_models(model_path, device, dtype):
     face_clip_model.to(device, dtype=dtype)
 
     return face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std
+
+
+
+###### train ###
+def _get_t5_prompt_embeds(
+    tokenizer: T5Tokenizer,
+    text_encoder: T5EncoderModel,
+    prompt: Union[str, List[str]],
+    num_videos_per_prompt: int = 1,
+    max_sequence_length: int = 226,
+    device: Optional[torch.device] = None,
+    dtype: Optional[torch.dtype] = None,
+    text_input_ids=None,
+):
+    """
+    Generate prompt embeddings using the T5 model for a given prompt or list of prompts.
+
+    Args:
+        tokenizer (T5Tokenizer): Tokenizer used to encode the text prompt(s).
+        text_encoder (T5EncoderModel): Pretrained T5 encoder model to generate embeddings.
+        prompt (Union[str, List[str]]): Single prompt or list of prompts to encode.
+        num_videos_per_prompt (int, optional): Number of video embeddings to generate per prompt. Defaults to 1.
+        max_sequence_length (int, optional): Maximum length for the tokenized prompt. Defaults to 226.
+        device (Optional[torch.device], optional): The device on which to run the model (e.g., "cuda", "cpu").
+        dtype (Optional[torch.dtype], optional): The data type for the embeddings (e.g., torch.float32).
+        text_input_ids (optional): Pre-tokenized input IDs. If not provided, tokenizer is used to encode the prompt.
+
+    Returns:
+        torch.Tensor: The generated prompt embeddings reshaped for the specified number of video generations per prompt.
+    """
+
+    prompt = [prompt] if isinstance(prompt, str) else prompt
+    batch_size = len(prompt)
+
+    if tokenizer is not None:
+        text_inputs = tokenizer(
+            prompt,
+            padding="max_length",
+            max_length=max_sequence_length,
+            truncation=True,
+            add_special_tokens=True,
+            return_tensors="pt",
+        )
+        text_input_ids = text_inputs.input_ids
+    else:
+        if text_input_ids is None:
+            raise ValueError("`text_input_ids` must be provided when the tokenizer is not specified.")
+
+    prompt_embeds = text_encoder(text_input_ids.to(device))[0]
+    prompt_embeds = prompt_embeds.to(dtype=dtype, device=device)
+
+    # duplicate text embeddings for each generation per prompt, using mps friendly method
+    _, seq_len, _ = prompt_embeds.shape
+    prompt_embeds = prompt_embeds.repeat(1, num_videos_per_prompt, 1)
+    prompt_embeds = prompt_embeds.view(batch_size * num_videos_per_prompt, seq_len, -1)
+
+    return prompt_embeds
+
+
+def encode_prompt(
+    tokenizer: T5Tokenizer,
+    text_encoder: T5EncoderModel,
+    prompt: Union[str, List[str]],
+    num_videos_per_prompt: int = 1,
+    max_sequence_length: int = 226,
+    device: Optional[torch.device] = None,
+    dtype: Optional[torch.dtype] = None,
+    text_input_ids=None,
+):
+    """
+    Encode the given prompt(s) into embeddings using the T5 model.
+
+    This function wraps the _get_t5_prompt_embeds function to generate prompt embeddings
+    for a given prompt or list of prompts. It allows for generating multiple embeddings
+    per prompt, useful for tasks like video generation.
+
+    Args:
+        tokenizer (T5Tokenizer): Tokenizer used to encode the text prompt(s).
+        text_encoder (T5EncoderModel): Pretrained T5 encoder model to generate embeddings.
+        prompt (Union[str, List[str]]): Single prompt or list of prompts to encode.
+        num_videos_per_prompt (int, optional): Number of video embeddings to generate per prompt. Defaults to 1.
+        max_sequence_length (int, optional): Maximum length for the tokenized prompt. Defaults to 226.
+        device (Optional[torch.device], optional): The device on which to run the model (e.g., "cuda", "cpu").
+        dtype (Optional[torch.dtype], optional): The data type for the embeddings (e.g., torch.float32).
+        text_input_ids (optional): Pre-tokenized input IDs. If not provided, tokenizer is used to encode the prompt.
+
+    Returns:
+        torch.Tensor: The generated prompt embeddings reshaped for the specified number of video generations per prompt.
+    """
+
+    prompt = [prompt] if isinstance(prompt, str) else prompt
+    prompt_embeds = _get_t5_prompt_embeds(
+        tokenizer,
+        text_encoder,
+        prompt=prompt,
+        num_videos_per_prompt=num_videos_per_prompt,
+        max_sequence_length=max_sequence_length,
+        device=device,
+        dtype=dtype,
+        text_input_ids=text_input_ids,
+    )
+    return prompt_embeds
+
+
+def compute_prompt_embeddings(
+    tokenizer, text_encoder, prompt, max_sequence_length, device, dtype, requires_grad: bool = False
+):
+    """
+    Compute the prompt embeddings based on whether gradient computation is required.
+
+    This function generates embeddings for a given prompt or list of prompts, either
+    with or without gradient tracking, depending on the `requires_grad` argument. It
+    uses the `encode_prompt` function to generate embeddings for the provided prompt(s).
+
+    Args:
+        tokenizer (T5Tokenizer): Tokenizer used to encode the text prompt(s).
+        text_encoder (T5EncoderModel): Pretrained T5 encoder model to generate embeddings.
+        prompt (Union[str, List[str]]): Single prompt or list of prompts to encode.
+        max_sequence_length (int): Maximum length for the tokenized prompt.
+        device (torch.device): The device on which to run the model (e.g., "cuda", "cpu").
+        dtype (torch.dtype): The data type for the embeddings (e.g., torch.float32).
+        requires_grad (bool, optional): Whether the embeddings should require gradient computation. Defaults to False.
+
+    Returns:
+        torch.Tensor: The generated prompt embeddings.
+    """
+
+    if requires_grad:
+        prompt_embeds = encode_prompt(
+            tokenizer,
+            text_encoder,
+            prompt,
+            num_videos_per_prompt=1,
+            max_sequence_length=max_sequence_length,
+            device=device,
+            dtype=dtype,
+        )
+    else:
+        with torch.no_grad():
+            prompt_embeds = encode_prompt(
+                tokenizer,
+                text_encoder,
+                prompt,
+                num_videos_per_prompt=1,
+                max_sequence_length=max_sequence_length,
+                device=device,
+                dtype=dtype,
+            )
+    return prompt_embeds
+
+
+def prepare_rotary_positional_embeddings(
+    height: int,
+    width: int,
+    num_frames: int,
+    vae_scale_factor_spatial: int = 8,
+    patch_size: int = 2,
+    attention_head_dim: int = 64,
+    device: Optional[torch.device] = None,
+    base_height: int = 480,
+    base_width: int = 720,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Prepare rotary positional embeddings for a given input grid size and number of frames.
+
+    This function computes the rotary positional embeddings for both spatial and temporal dimensions
+    given the grid size (height, width) and the number of frames. It also takes into account the scaling
+    factors for the spatial resolution, as well as the patch size for the input.
+
+    Args:
+        height (int): Height of the input grid.
+        width (int): Width of the input grid.
+        num_frames (int): Number of frames in the temporal dimension.
+        vae_scale_factor_spatial (int, optional): Scaling factor for the spatial resolution. Defaults to 8.
+        patch_size (int, optional): The patch size used for the grid. Defaults to 2.
+        attention_head_dim (int, optional): The dimensionality of the attention head. Defaults to 64.
+        device (Optional[torch.device], optional): The device to which the tensors should be moved (e.g., "cuda", "cpu").
+        base_height (int, optional): Base height for the image, typically the full resolution height. Defaults to 480.
+        base_width (int, optional): Base width for the image, typically the full resolution width. Defaults to 720.
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor]: Cosine and sine components of the rotary positional embeddings.
+    """
+    grid_height = height // (vae_scale_factor_spatial * patch_size)
+    grid_width = width // (vae_scale_factor_spatial * patch_size)
+    base_size_width = base_width // (vae_scale_factor_spatial * patch_size)
+    base_size_height = base_height // (vae_scale_factor_spatial * patch_size)
+
+    grid_crops_coords = get_resize_crop_region_for_grid((grid_height, grid_width), base_size_width, base_size_height)
+    freqs_cos, freqs_sin = get_3d_rotary_pos_embed(
+        embed_dim=attention_head_dim,
+        crops_coords=grid_crops_coords,
+        grid_size=(grid_height, grid_width),
+        temporal_size=num_frames,
+    )
+
+    freqs_cos = freqs_cos.to(device=device)
+    freqs_sin = freqs_sin.to(device=device)
+    return freqs_cos, freqs_sin
+
+
+def tensor_to_pil(src_img_tensor):
+    """
+    Converts a tensor image to a PIL image.
+
+    This function takes an input tensor with the shape (C, H, W) and converts it
+    into a PIL Image format. It ensures that the tensor is in the correct data
+    type and moves it to CPU if necessary.
+
+    Parameters:
+        src_img_tensor (torch.Tensor): Input image tensor with shape (C, H, W),
+            where C is the number of channels, H is the height, and W is the width.
+
+    Returns:
+        PIL.Image: The converted image in PIL format.
+    """
+
+    img = src_img_tensor.clone().detach()
+    if img.dtype == torch.bfloat16:
+        img = img.to(torch.float32)
+    img = img.cpu().numpy()
+    img = np.transpose(img, (1, 2, 0))
+    img = img.astype(np.uint8)
+    pil_image = Image.fromarray(img)
+    return pil_image

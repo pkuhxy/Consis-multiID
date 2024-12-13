@@ -1,10 +1,11 @@
-import os
-import cv2
-import json
 import argparse
-from tqdm import tqdm
-from moviepy import VideoFileClip
+import json
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import cv2
+from moviepy import VideoFileClip
+from tqdm import tqdm
 
 
 def parse_args():
@@ -93,7 +94,7 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=10, toler
 def is_valid_frame(frame_data):
     for person in frame_data:
         visible = person['keypoints']['visible']
-        if all([visible[i] >= 0.5 for i in range(3)]):
+        if all(visible[i] >= 0.5 for i in range(3)):
             return True
     return False
 
@@ -116,7 +117,7 @@ def extract_valid_segments(json_data, tolerance=5, min_length=10):
                     valid_segments.append(current_segment)
                 current_segment = []
                 consecutive_invalid_count = 0
-    
+
     if len(current_segment) >= min_length:
         valid_segments.append(current_segment)
 
@@ -149,7 +150,7 @@ def process_and_save_video(input_video_path, merged_segments, input_json_data, o
 
         if not (os.path.exists(output_video_file) and os.path.exists(output_bbox_file)):
             segments_to_process.append(segment)
-    
+
     if not segments_to_process:
         print("All segments already processed. Skipping video processing.")
         return
@@ -159,13 +160,13 @@ def process_and_save_video(input_video_path, merged_segments, input_json_data, o
         end_frame = segment[-1]
         start_time = start_frame / video.fps
         end_time = (end_frame + 1) / video.fps
-        
+
         output_video_file = os.path.join(output_video_folder, f"{video_name}_{start_frame}_{end_frame}.mp4")
         output_bbox_file = os.path.join(output_json_folder, f"{video_name}_{start_frame}_{end_frame}.json")
-    
+
         if not os.path.exists(output_video_file):
             video.subclipped(start_time, end_time).write_videofile(output_video_file, codec="libx264")
-        
+
         if not os.path.exists(output_bbox_file):
             segment_json = {str(new_idx): input_json_data[str(original_idx)] for new_idx, original_idx in enumerate(segment)}
             with open(output_bbox_file, 'w') as f:
@@ -192,7 +193,7 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, tolerance
                     valid_segments.append(current_segment)
                 current_segment = []
                 consecutive_invalid_count = 0
-    
+
     if len(current_segment) >= min_length:
         valid_segments.append(current_segment)
 
@@ -229,7 +230,7 @@ def main():
     os.makedirs(args.output_json_folder, exist_ok=True)
 
     video_files = [f for f in os.listdir(args.input_video_folder) if f.endswith(".mp4")]
-    
+
     with ThreadPoolExecutor(max_workers=args.num_processes) as executor:
         futures = [
             executor.submit(process_video, os.path.join(args.input_video_folder, video_file), args.input_json_folder, args.output_video_folder, args.output_json_folder)

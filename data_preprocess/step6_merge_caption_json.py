@@ -1,7 +1,8 @@
-import os
-import cv2
-import json
 import argparse
+import json
+import os
+
+import cv2
 from tqdm import tqdm
 
 
@@ -43,7 +44,7 @@ def merge_valid_caption(valid_json_dir, temp_caption_folder, output_caption_path
 def update_video_metadata(input_caption_path, input_video_folder):
     with open(input_caption_path, 'r') as file:
         videos = json.load(file)
-    
+
     for video in tqdm(videos):
         if 'video' in video:
             video['path'] = video.pop('video')
@@ -52,7 +53,7 @@ def update_video_metadata(input_caption_path, input_video_folder):
             video['cap'] = video.pop('description')
 
         video_path = os.path.join(input_video_folder, f"{video['path']}.mp4")
-        
+
         if os.path.exists(video_path):
             video['size'] = os.path.getsize(video_path)
         else:
@@ -63,12 +64,12 @@ def update_video_metadata(input_caption_path, input_video_folder):
         if not cap.isOpened():
             print(f"Error: Cannot open the video file {video_path}")
             continue
-        
+
         video['resolution'] = {
             'height': int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-            'width': int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))            
+            'width': int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         }
-        
+
         video['fps'] = cap.get(cv2.CAP_PROP_FPS)
         video['duration'] = cap.get(cv2.CAP_PROP_FRAME_COUNT) / video['fps']
         cap.release()

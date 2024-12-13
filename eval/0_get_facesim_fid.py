@@ -1,16 +1,16 @@
 import os
 import sys
+
 import cv2
 import numpy
 import numpy as np
-from PIL import Image
-
+import torch
+from huggingface_hub import snapshot_download
 from insightface.app import FaceAnalysis
 from insightface.utils import face_align
-
-import torch
+from PIL import Image
 from torchvision import models, transforms
-from huggingface_hub import snapshot_download
+
 
 current_file_path = os.path.abspath(__file__)
 project_roots = [os.path.dirname(os.path.dirname(current_file_path))]
@@ -18,6 +18,7 @@ for project_root in project_roots:
     sys.path.insert(0, project_root) if project_root not in sys.path else None
 
 from util.on_going_module.curricularface import get_model
+
 
 def load_image(image):
     img = image.convert('RGB')
@@ -33,7 +34,7 @@ def get_activations(images, model, batch_size=16):
         for i in range(0, len(images), batch_size):
             batch = images[i:i + batch_size]
             pred = model(batch)
-            activations.append(pred) 
+            activations.append(pred)
     activations = torch.cat(activations, dim=0).cpu().numpy()
     if activations.shape[0] == 1:
         activations = np.repeat(activations, 2, axis=0)
@@ -50,12 +51,12 @@ def matrix_sqrt(matrix):
 def calculate_fid(real_activations, fake_activations, device="cuda"):
     real_activations_tensor = torch.tensor(real_activations).to(device)
     fake_activations_tensor = torch.tensor(fake_activations).to(device)
-    
+
     mu1 = real_activations_tensor.mean(dim=0)
     sigma1 = torch.cov(real_activations_tensor.T)
     mu2 = fake_activations_tensor.mean(dim=0)
     sigma2 = torch.cov(fake_activations_tensor.T)
-    
+
     ssdiff = torch.sum((mu1 - mu2) ** 2)
     covmean = matrix_sqrt(sigma1.mm(sigma2))
     if torch.is_complex(covmean):
@@ -105,7 +106,7 @@ def process_image(face_model, image_path):
         padded_image, sub_coord = pad_np_bgr_image(image_bgr)
         face_info = get_face_keypoints(face_model, padded_image)
         if face_info is None:
-            print(f"Warning: No face detected in the image. Continuing processing...")
+            print("Warning: No face detected in the image. Continuing processing...")
             return None, None
         face_kps = face_info['kps']
         face_kps -= np.array(sub_coord)
@@ -140,49 +141,49 @@ def batch_cosine_similarity(embedding_image, embedding_frames, device="cuda"):
     return torch.nn.functional.cosine_similarity(embedding_image, embedding_frames, dim=-1).cpu().numpy()
 
 
-# def process_video(video_path, cur_image_embedding, face_arc_model, face_cur_model, device, arcface_image_embedding, real_activations, fid_model):    
-def process_video(video_path, face_arc_model, face_cur_model, fid_model, arcface_image_embedding, cur_image_embedding, real_activations, device):    
+# def process_video(video_path, cur_image_embedding, face_arc_model, face_cur_model, device, arcface_image_embedding, real_activations, fid_model):
+def process_video(video_path, face_arc_model, face_cur_model, fid_model, arcface_image_embedding, cur_image_embedding, real_activations, device):
     video_frames = sample_video_frames(video_path, num_frames=16)
-    
+
     # Initialize lists to store the scores
     cur_scores = []
     arc_scores = []
     fid_face = []
-    
+
     for frame in video_frames:
         # Convert to RGB once at the beginning
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
+
         # Process the frame for ArcFace embeddings
         align_face_frame, arcface_frame_embedding = process_image(face_arc_model, frame_rgb)
-        
+
         # Skip if alignment fails
         if align_face_frame is None:
             continue
 
         # Perform inference for current face model
         cur_embedding_frame = inference(face_cur_model, align_face_frame, device)
-        
+
         # Compute cosine similarity for cur_score and arc_score in a compact manner
         cur_score = max(0.0, batch_cosine_similarity(cur_image_embedding, cur_embedding_frame, device=device).item())
         arc_score = max(0.0, batch_cosine_similarity(arcface_image_embedding, arcface_frame_embedding, device=device).item())
-        
+
         # Process FID score
         align_face_frame_pil = Image.fromarray(align_face_frame)
         fake_image = load_image(align_face_frame_pil).to(device)
         fake_activations = get_activations(fake_image, fid_model)
         fid_score = calculate_fid(real_activations, fake_activations, device)
-        
+
         # Collect scores
         fid_face.append(fid_score)
         cur_scores.append(cur_score)
         arc_scores.append(arc_score)
-    
+
     # Aggregate results with default values for empty lists
     avg_cur_score = np.mean(cur_scores) if cur_scores else 0.0
     avg_arc_score = np.mean(arc_scores) if arc_scores else 0.0
     avg_fid_score = np.mean(fid_face) if fid_face else 0.0
-    
+
     return avg_cur_score, avg_arc_score, avg_fid_score
 
 
@@ -194,14 +195,14 @@ def main():
     results_file_path = "facesim_fid_score.txt"
 
     if not os.path.exists(model_path):
-        print(f"Model not found, downloading from Hugging Face...")
+        print("Model not found, downloading from Hugging Face...")
         snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir=model_path)
     else:
         print(f"Model already exists in {model_path}, skipping download.")
 
     face_arc_path = os.path.join(model_path, "face_encoder")
-    face_cur_path = os.path.join(face_arc_path, "glint360k_curricular_face_r101_backbone.bin")               
-    
+    face_cur_path = os.path.join(face_arc_path, "glint360k_curricular_face_r101_backbone.bin")
+
     # Initialize FaceEncoder model for face detection and embedding extraction
     face_arc_model = FaceAnalysis(root=face_arc_path, providers=['CUDAExecutionProvider'])
     face_arc_model.prepare(ctx_id=0, det_size=(320, 320))

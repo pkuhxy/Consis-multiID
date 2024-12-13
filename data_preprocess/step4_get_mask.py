@@ -1,19 +1,19 @@
-import os
-import gc
-import cv2
-import json
-import torch
-import shutil
 import argparse
-import numpy as np
-from PIL import Image
-from tqdm import tqdm
+import gc
+import json
+import os
+import shutil
 from pathlib import Path
-import supervision as sv
 from threading import Lock
-from huggingface_hub import hf_hub_download
 
+import numpy as np
+import supervision as sv
+import torch
+from huggingface_hub import hf_hub_download
+from PIL import Image
 from sam2.build_sam import build_sam2_video_predictor
+from tqdm import tqdm
+
 
 file_lock = Lock()
 
@@ -65,13 +65,13 @@ def find_max_confidence_bbox(data, max_people, confidence_threshold=0.85):
             for item in objects.get(object_type, []):
                 try:
                     new_track_id = item['new_track_id']
-                except:
+                except KeyError:
                     continue
                 confidence = item['confidence']
                 if new_track_id <= max_people and confidence > confidence_threshold:
                     if new_track_id not in best_appearance:
                         best_appearance[new_track_id] = {}
-                    
+
                     if (object_type not in best_appearance[new_track_id] or
                         best_appearance[new_track_id][object_type]['confidence'] < confidence):
                         best_appearance[new_track_id][object_type] = {
@@ -79,11 +79,11 @@ def find_max_confidence_bbox(data, max_people, confidence_threshold=0.85):
                             'frame_id': frame_id,
                             'confidence': confidence
                         }
-    
+
                         if object_type == 'head':
                             if new_track_id not in head_to_face_mapping:
                                 head_to_face_mapping[new_track_id] = {}
-                            
+
                             for face_item in objects.get('face', []):
                                 if face_item['new_track_id'] == new_track_id:
                                     head_to_face_mapping[new_track_id] = {
@@ -91,7 +91,7 @@ def find_max_confidence_bbox(data, max_people, confidence_threshold=0.85):
                                         'face_frame_id': frame_id,
                                         'confidence': face_item['confidence']
                                     }
-    
+
     return best_appearance, head_to_face_mapping
 
 def process_single_json(json_path, video_path, output_path, video_predictor):
@@ -117,7 +117,7 @@ def process_single_json(json_path, video_path, output_path, video_predictor):
         os.makedirs(source_video_frame_dir, exist_ok=True)
         os.makedirs(save_tracking_results_dir, exist_ok=True)
         os.makedirs(save_tracking_mask_results_dir, exist_ok=True)
-        
+
     """
     Custom video input directly using video files
     """
@@ -140,8 +140,8 @@ def process_single_json(json_path, video_path, output_path, video_predictor):
         print(f"Frames already exist in {source_video_frame_dir}, skipping.")
     else:
         with sv.ImageSink(
-            target_dir_path=source_frames, 
-            overwrite=True, 
+            target_dir_path=source_frames,
+            overwrite=True,
             image_name_pattern="{:05d}.jpg"
         ) as sink:
             for frame in tqdm(frame_generator, desc="Saving Video Frames"):
@@ -180,7 +180,7 @@ def process_single_json(json_path, video_path, output_path, video_predictor):
             OBJECT_IDS.append(new_track_id)
             OBJECTS.append('face')
             FRAME_IDX.append(int(object_data['face']['frame_id']))  # 记录face的frame_id
-        
+
         if 'head' in object_data:
             input_boxes.append([
                 object_data['head']['box']['x1'],
@@ -209,8 +209,7 @@ def process_single_json(json_path, video_path, output_path, video_predictor):
     control_json_data = {}
 
     Track_Object_IDs = OBJECT_IDS
-    OBJECT_IDS = [i for i in range(1, 1 + len(input_boxes))]
-    ID_TO_OBJECTS = {i: obj for i, obj in enumerate(OBJECTS, start=1)}
+    OBJECT_IDS = list(range(1, 1 + len(input_boxes)))
 
     for object_id, object_id_before, obj, frame_idx in zip(Track_Object_IDs, OBJECT_IDS, OBJECTS, FRAME_IDX):
         if object_id not in corresponding_json_data:
@@ -250,7 +249,7 @@ def process_single_json(json_path, video_path, output_path, video_predictor):
 
                 points = np.array([[x_center_face, y_center_face], [x_center_head, y_center_head]], dtype=np.float32)
                 labels = np.array([1, 1], np.int32)
-            except:
+            except KeyError:
                 x_min, y_min, x_max, y_max = box
                 x_center_head = (x_min + x_max) / 2.0
                 y_center_head = (y_min + y_max) / 2.0
@@ -295,14 +294,12 @@ def process_single_json(json_path, video_path, output_path, video_predictor):
         """
         valid_frame_list = []
         for frame_idx, segments in video_segments.items():
-            img = cv2.imread(os.path.join(source_video_frame_dir, frame_names[frame_idx]))
-            
             object_ids = list(segments.keys())
             masks = list(segments.values())
             masks = np.concatenate(masks, axis=0)
-            
+
             mask_img = torch.zeros(masks.shape[-2], masks.shape[-1])
-            mask_img[masks[0] == True] = object_ids[0]
+            mask_img[masks[0]] = object_ids[0]
             mask_img = mask_img.numpy().astype(np.uint16)
             mask_img_pil = Image.fromarray(mask_img)
             mask_img_pil.save(os.path.join(temp_save_tracking_mask_results_dir, f"annotated_frame_{frame_idx:05d}.png"))
@@ -312,7 +309,7 @@ def process_single_json(json_path, video_path, output_path, video_predictor):
 
         if object_name not in bbox_json_data[track_id]:
             bbox_json_data[track_id][object_name] = []
-        
+
         bbox_json_data[track_id][object_name].extend(valid_frame_list)
 
     with open(save_bbox_json_dir, 'w') as json_file:
@@ -325,15 +322,15 @@ def process_single_json(json_path, video_path, output_path, video_predictor):
 
 def process_multi_files(json_video_pairs, output_path, sam2_checkpoint, model_cfg):
     print(f"Process {os.getpid()} is handling {len(json_video_pairs)} files.")
-    
+
     if len(json_video_pairs) == 0:
         return
-        
+
     video_predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint)
 
     for json_file, video_file in tqdm(json_video_pairs, desc="Processing files"):
         process_single_json(json_file, video_file, output_path, video_predictor)
-    
+
     print("Finish processing multiple files")
 
     del video_predictor
@@ -363,9 +360,9 @@ if __name__ == "__main__":
 
     sam2_checkpoint = os.path.join(args.sam2_checkpoint_path, "sam2.1_hiera_large.pt")
     if not os.path.exists(sam2_checkpoint):
-        print(f"Model not found, downloading from Hugging Face and Github...")
+        print("Model not found, downloading from Hugging Face and Github...")
         hf_hub_download(repo_id="facebook/sam2.1-hiera-large", filename="sam2.1_hiera_large.pt", local_dir=args.sam2_checkpoint_path)
     else:
         print(f"Model already exists in {args.model_path}, skipping download.")
-    
+
     main(args.json_folder, args.video_folder, args.output_path, sam2_checkpoint, args.model_cfg)

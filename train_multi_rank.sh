@@ -5,7 +5,7 @@ export WANDB_MODE="offline"
 export MODEL_PATH="BestWishYsh/ConsisID-preview"
 export CONFIG_PATH="BestWishYsh/ConsisID-preview"
 export TYPE="i2v"
-export DATASET_PATH="asserts/demo_train_data/merge_train_data.txt"
+export DATASET_PATH="asserts/demo_train_data/total_train_data.txt"
 export OUTPUT_PATH="consisid_finetune_multi_rank"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 

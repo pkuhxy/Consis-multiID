@@ -1,9 +1,10 @@
-import os
-import json
 import argparse
-from tqdm import tqdm
-from itertools import count
+import json
+import os
 from concurrent.futures import ThreadPoolExecutor
+from itertools import count
+
+from tqdm import tqdm
 
 
 def parse_args():
@@ -224,11 +225,11 @@ def process_file(filename, input_json_folder, output_json_folder, error_log_path
     if os.path.exists(output_path):
         print(f"Skipping {output_path}, as output files already exist.")
         return
-        
+
     try:
         with open(input_path, 'r') as f:
             data = json.load(f)
-        
+
         # refine json
         max_people = estimate_num_people(data)
         frames = find_frames_with_fewer_person_boxes(data, max_people)
@@ -238,7 +239,7 @@ def process_file(filename, input_json_folder, output_json_folder, error_log_path
 
         # refine track id
         data_with_new_ids = assign_track_ids(data_refine)
-        
+
         with open(output_path, 'w') as f:
             json.dump(data_with_new_ids, f, indent=4)
 

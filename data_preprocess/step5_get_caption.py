@@ -1,24 +1,25 @@
-import os
+import argparse
 import glob
 import json
+import os
 import random
-import argparse
-from tqdm import tqdm
-from loguru import logger
 from threading import Lock
 
 import torch
-from torch.utils.data import Dataset, DataLoader
 from huggingface_hub import snapshot_download
-from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+from loguru import logger
 from qwen_vl_utils import process_vision_info
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
+
 
 file_lock = Lock()
 
 model_path = "../ckpts/data_process/Qwen2-VL-7B-Instruct"
 
 if not os.path.exists(model_path):
-    print(f"Model not found, downloading from Hugging Face and Github...")
+    print("Model not found, downloading from Hugging Face and Github...")
     snapshot_download(repo_id="Qwen/Qwen2-VL-7B-Instruct", local_dir=model_path)
 else:
     print(f"Model already exists in {model_path}, skipping download.")
@@ -43,13 +44,13 @@ class VideoDataset(Dataset):
         self.video_files = video_files
         self.processor = processor
 
-        fixed_paths = [  
-            self.output_folder,  
-        ]  
+        fixed_paths = [
+            self.output_folder,
+        ]
 
-        self.video_files = [  
-            video_file for video_file in tqdm(video_files, desc="Filtering video files")  
-            if not self._is_processed(video_file, fixed_paths)  
+        self.video_files = [
+            video_file for video_file in tqdm(video_files, desc="Filtering video files")
+            if not self._is_processed(video_file, fixed_paths)
         ]
 
     def _is_processed(self, video_file, fixed_paths):
@@ -116,12 +117,12 @@ def load_video_files(input_folder):
     video_files = glob.glob(os.path.join(input_folder, "*.mp4"))
     video_files += glob.glob(os.path.join(input_folder, "*.avi"))
     video_files += glob.glob(os.path.join(input_folder, "*.mkv"))
-    
+
     if not video_files:
         raise ValueError(f"No video files found in {input_folder}")
-    
+
     video_files = [os.path.abspath(file) for file in video_files]
-    
+
     return video_files
 
 
@@ -130,7 +131,7 @@ def main(args):
     if os.path.exists(failed_videos_file):
         with file_lock:
             with open(failed_videos_file, 'r') as f:
-                failed_videos = set(line.strip() for line in f)
+                failed_videos = {line.strip() for line in f}
     else:
         failed_videos = set()
 

@@ -1,8 +1,7 @@
 # The implementation is adopted from TFace,made pubicly available under the Apache-2.0 license at
 # https://github.com/Tencent/TFace/blob/master/recognition/torchkit/backbone/common.py
 import torch.nn as nn
-from torch.nn import (Conv2d, Module, ReLU,
-                      Sigmoid)
+from torch.nn import Conv2d, Module, ReLU, Sigmoid
 
 
 def initialize_weights(modules):

@@ -12,55 +12,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+import logging
 import math
+import os
 import pickle
 import random
 import shutil
-import logging
-import numpy as np
-from tqdm import tqdm
-from pathlib import Path
+import threading
 from datetime import timedelta
-from PIL import Image, ImageOps
-from peft import LoraConfig, get_peft_model_state_dict, set_peft_model_state_dict
+from pathlib import Path
 
+import accelerate
+import insightface
+import numpy as np
 import torch
 import transformers
-import accelerate
-from torch.utils.data import DataLoader
-from transformers.utils import ContextManagers
-from transformers import AutoTokenizer, T5EncoderModel
 from accelerate import Accelerator
 from accelerate.logging import get_logger
-from accelerate.utils import DistributedDataParallelKwargs, InitProcessGroupKwargs, ProjectConfiguration, DistributedType, set_seed
+from accelerate.utils import (
+    DistributedDataParallelKwargs,
+    DistributedType,
+    InitProcessGroupKwargs,
+    ProjectConfiguration,
+    set_seed,
+)
+from consisid_eva_clip import create_model_and_transforms
+from consisid_eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
+from facexlib.parsing import init_parsing_model
+from facexlib.utils.face_restoration_helper import FaceRestoreHelper
+from insightface.app import FaceAnalysis
+from models.consisid_utils import (
+    compute_prompt_embeddings,
+    prepare_rotary_positional_embeddings,
+    process_face_embeddings,
+    resize_numpy_image_long,
+    tensor_to_pil,
+)
+from models.pipeline_cogvideox import CogVideoXPipeline
+from models.pipeline_consisid import ConsisIDPipeline, draw_kps
+from models.transformer_consisid import ConsisIDTransformer3DModel
+from peft import LoraConfig, get_peft_model_state_dict, set_peft_model_state_dict
+from PIL import Image, ImageOps
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from transformers import AutoTokenizer, T5EncoderModel
+from transformers.utils import ContextManagers
+from util.dataloader import ConsisID_Dataset, RandomSampler, SequentialSampler
+from util.utils import get_args, pixel_values_to_pil, resize_mask
 
 import diffusers
-from diffusers.training_utils import EMAModel
 from diffusers import AutoencoderKLCogVideoX, CogVideoXDPMScheduler
-
 from diffusers.optimization import get_scheduler
-from diffusers.training_utils import cast_training_params, free_memory
-from diffusers.utils import convert_unet_state_dict_to_peft, export_to_video, is_wandb_available, load_image,deprecate
+from diffusers.training_utils import EMAModel, cast_training_params, free_memory
+from diffusers.utils import convert_unet_state_dict_to_peft, deprecate, export_to_video, is_wandb_available, load_image
 from diffusers.utils.torch_utils import is_compiled_module
 from diffusers.video_processor import VideoProcessor
 
-import insightface
-from insightface.app import FaceAnalysis
-from facexlib.parsing import init_parsing_model
-from facexlib.utils.face_restoration_helper import FaceRestoreHelper
 
-from models.eva_clip import create_model_and_transforms
-from models.eva_clip.constants import OPENAI_DATASET_MEAN, OPENAI_DATASET_STD
-from models.eva_clip.utils_qformer import resize_numpy_image_long
-from models.transformer_consisid import ConsisIDTransformer3DModel
-from models.pipeline_consisid import ConsisIDPipeline
-from models.pipeline_cogvideox import CogVideoXPipeline
-from models.utils import process_face_embeddings, compute_prompt_embeddings, prepare_rotary_positional_embeddings, draw_kps, tensor_to_pil
-from util.dataloader import ConsisID_Dataset, RandomSampler, SequentialSampler
-from util.utils import get_args, resize_mask, pixel_values_to_pil
-
-import threading
 lock = threading.Lock()
 
 if is_wandb_available():
@@ -76,7 +84,7 @@ def log_validation(
     pipeline_args,
     global_step,
     is_final_validation: bool = False,
-    id_vit_hidden=None, 
+    id_vit_hidden=None,
     id_cond=None,
     kps_cond=None,
 ):
@@ -295,7 +303,7 @@ def main(args):
                 " use `--variant=non_ema` instead."
             ),
         )
-        
+
     if torch.backends.mps.is_available() and args.mixed_precision == "bf16":
         # due to pytorch#99272, MPS does not yet support bfloat16.
         raise ValueError(
@@ -358,7 +366,7 @@ def main(args):
         'LFE_num_tokens': args.LFE_num_tokens,
         'LFE_output_dim': args.LFE_output_dim,
         'LFE_heads': args.LFE_heads,
-        'cross_attn_interval': args.cross_attn_interval, 
+        'cross_attn_interval': args.cross_attn_interval,
     }
 
     transformer = ConsisIDTransformer3DModel.from_pretrained_cus(
@@ -367,7 +375,7 @@ def main(args):
         config_path=args.config_path,
         transformer_additional_kwargs=transformer_additional_kwargs,
     )
-    
+
     def deepspeed_zero_init_disabled_context_manager():
         """
         returns either a context list that includes one that will disable zero.Init or an empty context list
@@ -377,13 +385,13 @@ def main(args):
             return []
 
         return [deepspeed_plugin.zero3_init_context_manager(enable=False)]
-    
+
 
     scheduler = CogVideoXDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
     tokenizer = AutoTokenizer.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="tokenizer", revision=args.revision
     )
-    
+
     with ContextManagers(deepspeed_zero_init_disabled_context_manager()):
         text_encoder = T5EncoderModel.from_pretrained(
             args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision
@@ -430,7 +438,7 @@ def main(args):
                 eva_transform_std = (eva_transform_std,) * 3
             eva_transform_mean = eva_transform_mean
             eva_transform_std = eva_transform_std
-            
+
             device_id = accelerator.process_index % torch.cuda.device_count()
             face_main_model = FaceAnalysis(name='antelopev2', root=os.path.join(args.pretrained_model_name_or_path, "face_encoder"), providers=['CUDAExecutionProvider'], provider_options=[{"device_id": device_id}])
             face_helper_2 = insightface.model_zoo.get_model(f'{args.pretrained_model_name_or_path}/face_encoder/models/antelopev2/glintr100.onnx', providers=['CUDAExecutionProvider'], provider_options=[{"device_id": device_id}])
@@ -466,7 +474,7 @@ def main(args):
     # enable gradient checkpointing
     if args.gradient_checkpointing:
         transformer.enable_gradient_checkpointing()
-    
+
     # Enable TF32 for faster training on Ampere GPUs,
     # cf https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices
     if args.allow_tf32 and torch.cuda.is_available():
@@ -481,7 +489,7 @@ def main(args):
     if args.mixed_precision == "fp16":
         # only upcast trainable parameters (LoRA) into fp32
         cast_training_params([transformer], dtype=torch.float32)
-    
+
     # Create EMA for the transformer3d.
     if args.use_ema:
         ema_transformer3d = ConsisIDTransformer3DModel.from_pretrained_cus(
@@ -490,7 +498,7 @@ def main(args):
             config_path=args.config_path,
             transformer_additional_kwargs=transformer_additional_kwargs,
         )
-        
+
         ema_transformer3d = EMAModel(ema_transformer3d.parameters(), model_cls=ConsisIDTransformer3DModel, model_config=ema_transformer3d.config)
 
     def unwrap_model(model):
@@ -512,8 +520,8 @@ def main(args):
                     model.save_face_modules(os.path.join(output_dir, "face_modules.pt"))
                 else:
                     model.save_pretrained(os.path.join(output_dir, "transformer"))
-                
-                if weights: 
+
+                if weights:
                     weights.pop()
 
             if args.is_train_lora:
@@ -598,7 +606,7 @@ def main(args):
             if trainable_module_name in name:
                 param.requires_grad = True
                 break
-    
+
     if args.is_train_face:
         unfreeze_modules = ["local_facial_extractor", "perceiver_cross_attention"]
 
@@ -606,7 +614,7 @@ def main(args):
             try:
                 for param in getattr(transformer, module_name).parameters():
                     param.requires_grad = True
-            except:
+            except AttributeError:
                 continue
 
         if args.is_train_lora:
@@ -622,7 +630,7 @@ def main(args):
     # Optimization parameters
     if args.is_diff_lr:
         fuse_face_ca_params = list(filter(lambda p: p.requires_grad, transformer.perceiver_cross_attention.parameters()))
-        fuse_face_ca_param_ids = set(id(p) for p in fuse_face_ca_params)
+        fuse_face_ca_param_ids = {id(p) for p in fuse_face_ca_params}
         transformer_params = [p for p in transformer.parameters() if p.requires_grad and id(p) not in fuse_face_ca_param_ids]
         fuse_face_ca_params_with_lr = {"params": fuse_face_ca_params, "lr": args.learning_rate * 10}
         transformer_params_with_lr = {"params": transformer_params, "lr": args.learning_rate * 0.1}
@@ -631,7 +639,7 @@ def main(args):
         trainable_params = list(filter(lambda p: p.requires_grad, transformer.parameters()))
         transformer_parameters_with_lr = {"params": trainable_params, "lr": args.learning_rate}
         params_to_optimize = [transformer_parameters_with_lr]
-    
+
     use_deepspeed_optimizer = (
         accelerator.state.deepspeed_plugin is not None
         and "optimizer" in accelerator.state.deepspeed_plugin.deepspeed_config
@@ -765,7 +773,7 @@ def main(args):
             initial_global_step = 0
         else:
             accelerator.print(f"Resuming from checkpoint {path}")
-            
+
             if args.is_accelerator_state_dict:
                 # way_1
                 accelerator.load_state(os.path.join(args.output_dir, path))
@@ -781,7 +789,7 @@ def main(args):
                         subfolder="transformer_ema",
                         transformer_additional_kwargs=transformer_additional_kwargs,
                     )
-                    
+
                     load_model = EMAModel(load_model.parameters(), model_cls=ConsisIDTransformer3DModel, model_config=load_model.config)
                     load_model.load_state_dict(ema_kwargs)
 
@@ -858,14 +866,14 @@ def main(args):
             )
             for prompt in prompts
         ]
-    
+
     for epoch in range(first_epoch, args.num_train_epochs):
         transformer.train()
         sampler.generator = torch.Generator().manual_seed(args.seed + epoch)
         for step, batch in enumerate(train_dataloader):
             free_memory()
             models_to_accumulate = [transformer]
-            
+
             with accelerator.accumulate(models_to_accumulate):
                 if args.low_vram:
                     free_memory()
@@ -930,10 +938,10 @@ def main(args):
                                     if not args.is_align_face:
                                         original_id_image = np.array(tensor_to_pil(original_face_imgs[idx]).convert("RGB"))
                                         original_id_image = resize_numpy_image_long(original_id_image, 1024)
-                                    id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std, face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image, is_align_face=args.is_align_face, cal_uncond=False)
+                                    id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std, face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image, is_align_face=args.is_align_face)
                                 except Exception as e:
                                     processed = False
-                                    
+
                                     if args.is_reserve_face:
                                         print(f"Initial processing failed for image {idx}, attempting to process reserve images. Error: {e}")
                                         original_id_image = None
@@ -942,12 +950,12 @@ def main(args):
                                             original_id_image = resize_numpy_image_long(original_id_image, 1024)
                                         for reserve_idx, reserve_id_image in enumerate(reserve_face_imgs[idx]):
                                             id_image = np.array(tensor_to_pil(reserve_id_image).convert("RGB"))
-                                            id_image = resize_numpy_image_long(id_image, 1024) 
+                                            id_image = resize_numpy_image_long(id_image, 1024)
                                             try:
                                                 id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(
                                                     face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std,
-                                                    face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image, 
-                                                    is_align_face=args.is_align_face, cal_uncond=False
+                                                    face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image,
+                                                    is_align_face=args.is_align_face
                                                 )
                                                 processed = True
                                                 break
@@ -969,8 +977,8 @@ def main(args):
                                                 id_image = resize_numpy_image_long(id_image, 1024)
                                                 id_cond, id_vit_hidden, align_crop_face_image, face_kps = process_face_embeddings(
                                                     face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std,
-                                                    face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image, 
-                                                    is_align_face=args.is_align_face, cal_uncond=False
+                                                    face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=original_id_image,
+                                                    is_align_face=args.is_align_face
                                                 )
                                                 processed = True
                                                 break
@@ -979,7 +987,7 @@ def main(args):
                                                 continue
 
                                     if not processed:
-                                        
+
                                         print(f"All attempts failed for image {idx}. No valid embeddings could be generated.")
 
                                 if id_cond is not None:
@@ -1032,7 +1040,7 @@ def main(args):
                             video_latents = latent_dist.sample() * vae.config.scaling_factor
                             video_latents = video_latents.permute(0, 2, 1, 3, 4)  # [B, C, F, H, W] -> [B, F, C, H, W]
                             video_latents_list.append(video_latents)
-                            
+
                             if args.train_type == 'i2v':
                                 image_latents = image_latent_dist.sample() * vae.config.scaling_factor  # torch.Size([1, 16, 1, 60, 90])
                                 image_latents = image_latents.permute(0, 2, 1, 3, 4)  # [B, C, 1, H, W] -> [B, 1, C, H, W]  torch.Size([1, 1, 16, 60, 90])
@@ -1048,7 +1056,7 @@ def main(args):
                                 if random.random() < args.noised_image_dropout:
                                     image_latents = torch.zeros_like(image_latents)
                                 image_latents_list.append(image_latents)
-                                
+
                         video_latents = torch.cat(video_latents_list).to(memory_format=torch.contiguous_format).float()
                         video_latents = video_latents.to(dtype=weight_dtype)  # [B, F, C, H, W]
 
@@ -1156,7 +1164,7 @@ def main(args):
                     loss = torch.mean(loss, dim=1).mean()
 
                 accelerator.backward(loss)
-                if accelerator.sync_gradients:        
+                if accelerator.sync_gradients:
                     params_to_clip = transformer.parameters()
                     accelerator.clip_grad_norm_(params_to_clip, args.max_grad_norm)
                 if accelerator.state.deepspeed_plugin is None:
@@ -1185,14 +1193,14 @@ def main(args):
             del valid_id_vit_hiddens
             del face_kps_latents
             free_memory()
-            
+
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
                 if args.use_ema:
                     ema_transformer3d.step(transformer.parameters())
                 progress_bar.update(1)
                 global_step += 1
-            
+
                 if accelerator.distributed_type == DistributedType.DEEPSPEED or accelerator.is_main_process:
                     if global_step % args.checkpointing_steps == 0:
                         # _before_ saving state, check if this save would set us over the `checkpoints_total_limit`
@@ -1262,7 +1270,7 @@ def main(args):
                                             B_valid_num = torch.tensor([1], dtype=torch.int32)
                                             id_image = np.array(Image.open(validation_image).convert("RGB"))
                                             id_image = resize_numpy_image_long(id_image, 1024)
-                                            id_cond, id_vit_hidden, align_crop_face_image, kps_cond = process_face_embeddings(face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std, face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=id_image, is_align_face=args.is_align_face, cal_uncond=False)
+                                            id_cond, id_vit_hidden, align_crop_face_image, kps_cond = process_face_embeddings(face_helper_1, face_clip_model, face_helper_2, eva_transform_mean, eva_transform_std, face_main_model, accelerator.device, weight_dtype, id_image, original_id_image=id_image, is_align_face=args.is_align_face)
                                             tensor = align_crop_face_image.cpu().detach()
                                             tensor = tensor.squeeze()
                                             tensor = tensor.permute(1, 2, 0)
@@ -1271,7 +1279,7 @@ def main(args):
                                             pil_img = ImageOps.exif_transpose(Image.fromarray(tensor))
                                         else:
                                             pil_img = load_image(validation_image)
-                                        
+
                                         if args.train_type == 'i2v':
                                             pipeline_args = {
                                                 "image": pil_img,
@@ -1297,10 +1305,10 @@ def main(args):
                                             global_step=global_step,
                                             pipeline_args=pipeline_args,
                                             id_vit_hidden=id_vit_hidden if id_vit_hidden is not None else None,
-                                            id_cond=id_cond if id_cond is not None else None,  
+                                            id_cond=id_cond if id_cond is not None else None,
                                             kps_cond=kps_cond if kps_cond is not None else None,
                                         )
-                                    
+
                                 del pipe
                                 del validation_outputs
                                 free_memory()
@@ -1310,7 +1318,7 @@ def main(args):
 
             try:
                 logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
-            except:
+            except AttributeError:
                 logs = {"loss": loss.item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
@@ -1328,7 +1336,7 @@ def main(args):
             transformer.save_pretrained(os.path.join(save_path, "transformer"))
             if args.use_ema:
                 ema_transformer3d.save_pretrained(os.path.join(save_path, "transformer_ema"))
-            
+
         logger.info(f"Saved state to {save_path}")
 
     accelerator.end_training()

@@ -1,20 +1,22 @@
-import os
-import math
-import tqdm
-import logging
 import argparse
 import itertools
-import PIL.Image
-import numpy as np
-from PIL import Image
-import safetensors.torch
+import logging
+import math
+import os
 from datetime import datetime
-from typing import Union, List
-from spandrel import ModelLoader
+from typing import List, Union
 
+import numpy as np
+import PIL.Image
+import safetensors.torch
 import torch
 import torch.nn.functional as F
+import tqdm
+from PIL import Image
+from spandrel import ModelLoader
+
 from diffusers.utils import export_to_video
+
 
 logger = logging.getLogger(__file__)
 def get_args():
@@ -420,8 +422,8 @@ def get_args():
         ),
     )
     parser.add_argument(
-        '--trainable_modules', 
-        nargs='+', 
+        '--trainable_modules',
+        nargs='+',
         help='Enter a list of trainable modules'
     )
     parser.add_argument("--nccl_timeout", type=int, default=600, help="NCCL backend timeout in seconds.")
@@ -440,7 +442,7 @@ def resize_mask(mask, latent, process_first_frame_only=True):
             mode='trilinear',
             align_corners=False
         )
-        
+
         target_size = list(latent_size[2:])
         target_size[0] = target_size[0] - 1
         if target_size[0] != 0:
@@ -473,13 +475,13 @@ def save_tensor_as_image(tensor, file_path):
     """
     # Ensure the tensor is in CPU memory and detach it from the computation graph
     tensor = tensor.cpu().detach()
-    
+
     # Convert from PyTorch to NumPy format, and handle the scaling from [0, 1] to [0, 255]
     tensor = tensor.squeeze()  # Remove unnecessary dimensions if any
     tensor = tensor.permute(1, 2, 0)  # Change from (C, H, W) to (H, W, C)
     tensor = tensor.numpy() * 255  # Scale from [0, 1] to [0, 255]
     tensor = tensor.astype(np.uint8)  # Convert to uint8
-    
+
     # Convert the NumPy array to a PIL Image and save it
     image = Image.fromarray(tensor)
     image.save(file_path)
@@ -501,7 +503,7 @@ def load_torch_file(ckpt, device=None, dtype=torch.float16):
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         sd = safetensors.torch.load_file(ckpt, device=device.type)
     else:
-        if not "weights_only" in torch.load.__code__.co_varnames:
+        if "weights_only" not in torch.load.__code__.co_varnames:
             logger.warning(
                 "Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely."
             )
@@ -526,12 +528,10 @@ def state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=False):
     else:
         out = state_dict
     for rp in replace_prefix:
-        replace = list(
-            map(
-                lambda a: (a, "{}{}".format(replace_prefix[rp], a[len(rp) :])),
-                filter(lambda a: a.startswith(rp), state_dict.keys()),
-            )
-        )
+        replace = [
+            (a, "{}{}".format(replace_prefix[rp], a[len(rp):]))
+            for a in filter(lambda a: a.startswith(rp), state_dict.keys())
+        ]
         for x in replace:
             w = state_dict.pop(x[0])
             out[x[1]] = w
@@ -558,22 +558,22 @@ def tiled_scale_multidim(
     dims = len(tile)
     print(f"samples dtype:{samples.dtype}")
     output = torch.empty(
-        [samples.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), samples.shape[2:])),
+        [samples.shape[0], out_channels] + [round(a * upscale_amount) for a in samples.shape[2:]],
         device=output_device,
     )
 
     for b in range(samples.shape[0]):
         s = samples[b : b + 1]
         out = torch.zeros(
-            [s.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), s.shape[2:])),
+            [s.shape[0], out_channels] + [round(a * upscale_amount) for a in s.shape[2:]],
             device=output_device,
         )
         out_div = torch.zeros(
-            [s.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), s.shape[2:])),
+            [s.shape[0], out_channels] + [round(a * upscale_amount) for a in s.shape[2:]],
             device=output_device,
         )
 
-        for it in itertools.product(*map(lambda a: range(0, a[0], a[1] - overlap), zip(s.shape[2:], tile))):
+        for it in itertools.product(*(range(0, a[0], a[1] - overlap) for a in zip(s.shape[2:], tile))):
             s_in = s
             upscaled = []
 
