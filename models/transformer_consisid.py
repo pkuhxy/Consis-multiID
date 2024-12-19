@@ -149,7 +149,8 @@ class PerceiverAttention(nn.Module):
 class LocalFacialExtractor(nn.Module):
     def __init__(
         self,
-        dim=1024,
+        id_dim=1280,
+        vit_dim=1024,
         depth=10,
         dim_head=64,
         heads=16,
@@ -162,7 +163,8 @@ class LocalFacialExtractor(nn.Module):
         Initializes the LocalFacialExtractor class.
 
         Parameters:
-        - dim (int): The dimensionality of latent features.
+        - id_dim (int): The dimensionality of id features.
+        - vit_dim (int): The dimensionality of vit features.
         - depth (int): Total number of PerceiverAttention and ConsisIDFeedForward layers.
         - dim_head (int): Dimensionality of each attention head.
         - heads (int): Number of attention heads.
@@ -175,16 +177,16 @@ class LocalFacialExtractor(nn.Module):
 
         # Storing identity token and query information
         self.num_id_token = num_id_token
-        self.dim = dim
+        self.vit_dim = vit_dim
         self.num_queries = num_queries
         assert depth % 5 == 0
         self.depth = depth // 5
-        scale = dim**-0.5
+        scale = vit_dim**-0.5
 
         # Learnable latent query embeddings
-        self.latents = nn.Parameter(torch.randn(1, num_queries, dim) * scale)
+        self.latents = nn.Parameter(torch.randn(1, num_queries, vit_dim) * scale)
         # Projection layer to map the latent output to the desired dimension
-        self.proj_out = nn.Parameter(scale * torch.randn(dim, output_dim))
+        self.proj_out = nn.Parameter(scale * torch.randn(vit_dim, output_dim))
 
         # Attention and ConsisIDFeedForward layer stack
         self.layers = nn.ModuleList([])
@@ -192,8 +194,8 @@ class LocalFacialExtractor(nn.Module):
             self.layers.append(
                 nn.ModuleList(
                     [
-                        PerceiverAttention(dim=dim, dim_head=dim_head, heads=heads),  # Perceiver Attention layer
-                        ConsisIDFeedForward(dim=dim, mult=ff_mult),  # ConsisIDFeedForward layer
+                        PerceiverAttention(dim=vit_dim, dim_head=dim_head, heads=heads),  # Perceiver Attention layer
+                        ConsisIDFeedForward(dim=vit_dim, mult=ff_mult),  # ConsisIDFeedForward layer
                     ]
                 )
             )
@@ -204,25 +206,25 @@ class LocalFacialExtractor(nn.Module):
                 self,
                 f"mapping_{i}",
                 nn.Sequential(
-                    nn.Linear(1024, 1024),
-                    nn.LayerNorm(1024),
+                    nn.Linear(vit_dim, vit_dim),
+                    nn.LayerNorm(vit_dim),
                     nn.LeakyReLU(),
-                    nn.Linear(1024, 1024),
-                    nn.LayerNorm(1024),
+                    nn.Linear(vit_dim, vit_dim),
+                    nn.LayerNorm(vit_dim),
                     nn.LeakyReLU(),
-                    nn.Linear(1024, dim),
+                    nn.Linear(vit_dim, vit_dim),
                 ),
             )
 
         # Mapping for identity embedding vectors
         self.id_embedding_mapping = nn.Sequential(
-            nn.Linear(1280, 1024),
-            nn.LayerNorm(1024),
+            nn.Linear(id_dim, vit_dim),
+            nn.LayerNorm(vit_dim),
             nn.LeakyReLU(),
-            nn.Linear(1024, 1024),
-            nn.LayerNorm(1024),
+            nn.Linear(vit_dim, vit_dim),
+            nn.LayerNorm(vit_dim),
             nn.LeakyReLU(),
-            nn.Linear(1024, dim * num_id_token),
+            nn.Linear(vit_dim, vit_dim * num_id_token),
         )
 
     def forward(self, x, y):
@@ -230,8 +232,8 @@ class LocalFacialExtractor(nn.Module):
         Forward pass for LocalFacialExtractor.
 
         Parameters:
-        - x (Tensor): The input identity embedding tensor of shape (batch_size, 1280).
-        - y (list of Tensor): A list of 5 visual feature tensors each of shape (batch_size, 1024).
+        - x (Tensor): The input identity embedding tensor of shape (batch_size, id_dim).
+        - y (list of Tensor): A list of 5 visual feature tensors each of shape (batch_size, vit_dim).
 
         Returns:
         - Tensor: The extracted latent features of shape (batch_size, num_queries, output_dim).
@@ -242,7 +244,7 @@ class LocalFacialExtractor(nn.Module):
 
         # Map the identity embedding to tokens
         x = self.id_embedding_mapping(x)
-        x = x.reshape(-1, self.num_id_token, self.dim)
+        x = x.reshape(-1, self.num_id_token, self.vit_dim)
 
         # Concatenate identity tokens with the latent queries
         latents = torch.cat((latents, x), dim=1)
@@ -488,7 +490,7 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
         dropout (`float`, defaults to `0.0`):
             The dropout probability to use.
         attention_bias (`bool`, defaults to `True`):
-            Whether or not to use bias in the attention projection layers.
+            Whether to use bias in the attention projection layers.
         sample_width (`int`, defaults to `90`):
             The width of the input latents.
         sample_height (`int`, defaults to `60`):
@@ -509,7 +511,7 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
         timestep_activation_fn (`str`, defaults to `"silu"`):
             Activation function to use when generating the timestep embeddings.
         norm_elementwise_affine (`bool`, defaults to `True`):
-            Whether or not to use elementwise affine in normalization layers.
+            Whether to use elementwise affine in normalization layers.
         norm_eps (`float`, defaults to `1e-5`):
             The epsilon value to use in normalization layers.
         spatial_interpolation_scale (`float`, defaults to `1.875`):
@@ -521,18 +523,50 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
             model will focus on identity-preserving tasks.
         is_kps (`bool`, defaults to `False`):
             Whether to enable keypoint for global facial extractor. If `True`, keypoints will be in the model.
-        cross_attn_interval (`int`, defaults to `1`):
+        cross_attn_interval (`int`, defaults to `2`):
             The interval between cross-attention layers in the Transformer architecture. A larger value may reduce the
             frequency of cross-attention computations, which can help reduce computational overhead.
-        LFE_num_tokens (`int`, defaults to `32`):
-            The number of tokens to use in the Local Facial Extractor (LFE). This module is responsible for capturing
-            high frequency representations of the face.
-        LFE_output_dim (`int`, defaults to `768`):
-            The output dimension of the Local Facial Extractor (LFE) module. This dimension determines the size of the
-            feature vectors produced by the LFE module.
-        LFE_heads (`int`, defaults to `12`):
-            The number of attention heads used in the Local Facial Extractor (LFE) module. More heads may improve the
-            ability to capture diverse features, but can also increase computational complexity.
+        cross_attn_dim_head (`int`, optional, defaults to `128`):
+            The dimensionality of each attention head in the cross-attention layers of the Transformer architecture. A
+            larger value increases the capacity to attend to more complex patterns, but also increases memory and
+            computation costs.
+        cross_attn_num_heads (`int`, optional, defaults to `16`):
+            The number of attention heads in the cross-attention layers. More heads allow for more parallel attention
+            mechanisms, capturing diverse relationships between different components of the input, but can also
+            increase computational requirements.
+        LFE_id_dim (`int`, optional, defaults to `1280`):
+            The dimensionality of the identity vector used in the Local Facial Extractor (LFE). This vector represents
+            the identity features of a face, which are important for tasks like face recognition and identity
+            preservation across different frames.
+        LFE_vit_dim (`int`, optional, defaults to `1024`):
+            The dimension of the vision transformer (ViT) output used in the Local Facial Extractor (LFE). This value
+            dictates the size of the transformer-generated feature vectors that will be processed for facial feature
+            extraction.
+        LFE_depth (`int`, optional, defaults to `10`):
+            The number of layers in the Local Facial Extractor (LFE). Increasing the depth allows the model to capture
+            more complex representations of facial features, but also increases the computational load.
+        LFE_dim_head (`int`, optional, defaults to `64`):
+            The dimensionality of each attention head in the Local Facial Extractor (LFE). This parameter affects how
+            finely the model can process and focus on different parts of the facial features during the extraction
+            process.
+        LFE_num_heads (`int`, optional, defaults to `16`):
+            The number of attention heads in the Local Facial Extractor (LFE). More heads can improve the model's
+            ability to capture diverse facial features, but at the cost of increased computational complexity.
+        LFE_num_id_token (`int`, optional, defaults to `5`):
+            The number of identity tokens used in the Local Facial Extractor (LFE). This defines how many
+            identity-related tokens the model will process to ensure face identity preservation during feature
+            extraction.
+        LFE_num_querie (`int`, optional, defaults to `32`):
+            The number of query tokens used in the Local Facial Extractor (LFE). These tokens are used to capture
+            high-frequency face-related information that aids in accurate facial feature extraction.
+        LFE_output_dim (`int`, optional, defaults to `2048`):
+            The output dimension of the Local Facial Extractor (LFE). This dimension determines the size of the feature
+            vectors produced by the LFE module, which will be used for subsequent tasks such as face recognition or
+            tracking.
+        LFE_ff_mult (`int`, optional, defaults to `4`):
+            The multiplication factor applied to the feed-forward network's hidden layer size in the Local Facial
+            Extractor (LFE). A higher value increases the model's capacity to learn more complex facial feature
+            transformations, but also increases the computation and memory requirements.
         local_face_scale (`float`, defaults to `1.0`):
             A scaling factor used to adjust the importance of local facial features in the model. This can influence
             how strongly the model focuses on high frequency face-related content.
@@ -570,10 +604,18 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
         use_learned_positional_embeddings: bool = False,
         is_train_face: bool = False,
         is_kps: bool = False,
-        cross_attn_interval: int = 1,
-        LFE_num_tokens: int = 32,
-        LFE_output_dim: int = 768,
-        LFE_heads: int = 12,
+        cross_attn_interval: int = 2,
+        cross_attn_dim_head: int = 128,
+        cross_attn_num_heads: int = 16,
+        LFE_id_dim: int = 1280,
+        LFE_vit_dim: int = 1024,
+        LFE_depth: int = 10,
+        LFE_dim_head: int = 64,
+        LFE_num_heads: int = 16,
+        LFE_num_id_token: int = 5,
+        LFE_num_querie: int = 32,
+        LFE_output_dim: int = 2048,
+        LFE_ff_mult: int = 4,
         local_face_scale: float = 1.0,
     ):
         super().__init__()
@@ -645,14 +687,25 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
 
         # 5. Define identity-preserving config
         if is_train_face:
+            # LFE configs
+            self.LFE_id_dim = LFE_id_dim
+            self.LFE_vit_dim = LFE_vit_dim
+            self.LFE_depth = LFE_depth
+            self.LFE_dim_head = LFE_dim_head
+            self.LFE_num_heads = LFE_num_heads
+            self.LFE_num_id_token = LFE_num_id_token
+            self.LFE_num_querie = LFE_num_querie
+            self.LFE_output_dim = LFE_output_dim
+            self.LFE_ff_mult = LFE_ff_mult
+            # cross configs
             self.inner_dim = inner_dim
             self.cross_attn_interval = cross_attn_interval
-            self.num_ca = num_layers // cross_attn_interval
-            self.LFE_num_tokens = LFE_num_tokens
-            self.LFE_output_dim = LFE_output_dim
-            self.LFE_heads = LFE_heads
-            self.LFE_final_output_dim = int(self.inner_dim / 3 * 2)
+            self.num_cross_attn = num_layers // cross_attn_interval
+            self.cross_attn_dim_head = cross_attn_dim_head
+            self.cross_attn_num_heads = cross_attn_num_heads
+            self.cross_attn_kv_dim = int(self.inner_dim / 3 * 2)
             self.local_face_scale = local_face_scale
+            # face modules
             self._init_face_inputs()
 
     def _set_gradient_checkpointing(self, module, value=False):
@@ -660,15 +713,28 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
 
     def _init_face_inputs(self):
         device = self.device
-        weight_dtype = next(self.transformer_blocks.parameters()).dtype
-        self.local_facial_extractor = LocalFacialExtractor()
+        weight_dtype = self.dtype
+        self.local_facial_extractor = LocalFacialExtractor(
+            id_dim=self.LFE_id_dim,
+            vit_dim=self.LFE_vit_dim,
+            depth=self.LFE_depth,
+            dim_head=self.LFE_dim_head,
+            heads=self.LFE_num_heads,
+            num_id_token=self.LFE_num_id_token,
+            num_queries=self.LFE_num_querie,
+            output_dim=self.LFE_output_dim,
+            ff_mult=self.LFE_ff_mult,
+        )
         self.local_facial_extractor.to(device, dtype=weight_dtype)
         self.perceiver_cross_attention = nn.ModuleList(
             [
                 PerceiverCrossAttention(
-                    dim=self.inner_dim, dim_head=128, heads=16, kv_dim=self.LFE_final_output_dim
+                    dim=self.inner_dim,
+                    dim_head=self.cross_attn_dim_head,
+                    heads=self.cross_attn_num_heads,
+                    kv_dim=self.cross_attn_kv_dim,
                 ).to(device, dtype=weight_dtype)
-                for _ in range(self.num_ca)
+                for _ in range(self.num_cross_attn)
             ]
         )
 
