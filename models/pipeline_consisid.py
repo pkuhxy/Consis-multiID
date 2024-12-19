@@ -26,6 +26,7 @@ from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
 from diffusers.models import AutoencoderKLCogVideoX, ConsisIDTransformer3DModel
 from diffusers.models.embeddings import get_3d_rotary_pos_embed
+from diffusers.pipelines.consisid.pipeline_output import ConsisIDPipelineOutput
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.schedulers import CogVideoXDDIMScheduler, CogVideoXDPMScheduler
 from diffusers.utils import (
@@ -34,8 +35,6 @@ from diffusers.utils import (
 )
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.video_processor import VideoProcessor
-
-from .pipeline_output import ConsisIDPipelineOutput
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
