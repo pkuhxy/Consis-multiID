@@ -287,7 +287,7 @@ We release the data used for evaluation in [ConsisID](https://huggingface.co/pap
 
 ## 👍 Acknowledgement
 
-* This project wouldn't be possible without the following open-sourced repositories: [Open-Sora Plan](https://github.com/PKU-YuanGroup/Open-Sora-Plan), [CogVideoX](https://github.com/THUDM/CogVideo), [EasyAnimate](https://github.com/aigc-apps/EasyAnimate), [CogVideoX-Fun](https://github.com/aigc-apps/CogVideoX-Fun).
+* This project wouldn't be possible without the following open-sourced repositories: [Open-Sora Plan](https://github.com/PKU-YuanGroup/Open-Sora-Plan), [CogVideoX](https://github.com/THUDM/CogVideo), [EasyAnimate](https://github.com/aigc-apps/EasyAnimate), [CogVideoX-Fun](https://github.com/aigc-apps/CogVideoX-Fun), [IP-Adapter](https://github.com/tencent-ailab/IP-Adapter), [PhotoMaker](https://github.com/TencentARC/PhotoMaker), [UniPortrait](https://github.com/junjiehe96/UniPortrait).
 
 ## 🔒 License
 
