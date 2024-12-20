@@ -68,8 +68,8 @@ frame_interpolation_model = load_rife_model(f"{model_path}/model_rife")
 def generate(
     prompt: str,
     image_input: str,
-    num_inference_steps: int,
-    guidance_scale: float,
+    num_inference_steps: int = 50,
+    guidance_scale: float = 6.0,
     seed: int = 42,
     negative_prompt: str = None,
     scale_status: bool = False,
