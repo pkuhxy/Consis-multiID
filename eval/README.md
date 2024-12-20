@@ -1,5 +1,5 @@
 # <u>Evaluation Pipeline</u> by *ConsisID*
-This repo describes how to how to evaluate customized model on the [ConsisID](https://arxiv.org/abs/2411.17440) paper.
+This repo describes how to evaluate customized model in the [ConsisID](https://arxiv.org/abs/2411.17440) paper.
 
 ## ⚙️ Download Data and Weight
 
