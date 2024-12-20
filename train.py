@@ -363,10 +363,18 @@ def main(args):
         'variant': args.variant,
         'is_train_face': args.is_train_face,
         'is_kps': args.is_kps,
-        'LFE_num_tokens': args.LFE_num_tokens,
-        'LFE_output_dim': args.LFE_output_dim,
-        'LFE_heads': args.LFE_heads,
         'cross_attn_interval': args.cross_attn_interval,
+        'cross_attn_dim_head': args.cross_attn_dim_head,
+        'cross_attn_num_heads': args.cross_attn_num_heads,
+        'LFE_id_dim': args.LFE_id_dim,
+        'LFE_vit_dim': args.LFE_vit_dim,
+        'LFE_depth': args.LFE_depth,
+        'LFE_dim_head': args.LFE_dim_head,
+        'LFE_num_heads': args.LFE_num_heads,
+        'LFE_num_id_token': args.LFE_num_id_token,
+        'LFE_num_querie': args.LFE_num_querie,
+        'LFE_ff_mult': args.LFE_ff_mult,
+        'local_face_scale': args.local_face_scale,
     }
 
     transformer = ConsisIDTransformer3DModel.from_pretrained_cus(

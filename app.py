@@ -200,6 +200,9 @@ with gr.Blocks() as demo:
                         seed_param = gr.Number(
                             label="Inference Seed (Enter a positive number, -1 for random)", value=42
                         )
+                        cfg_param = gr.Number(
+                            label="Guidance Scale (Enter a positive number, default = 6.0)", value=6.0
+                        )
                     with gr.Row():
                         enable_scale = gr.Checkbox(label="Super-Resolution (720 × 480 -> 2880 × 1920)", value=False)
                         enable_rife = gr.Checkbox(label="Frame Interpolation (8fps -> 16fps)", value=False)
@@ -286,6 +289,7 @@ with gr.Blocks() as demo:
         negative_prompt,
         image_input,
         seed_value,
+        cfg_param,
         scale_status,
         rife_status,
         progress=gr.Progress(track_tqdm=True)
@@ -295,7 +299,7 @@ with gr.Blocks() as demo:
             image_input,
             negative_prompt=negative_prompt,
             num_inference_steps=50,
-            guidance_scale=6.0,
+            guidance_scale=cfg_param,
             seed=seed_value,
             scale_status=scale_status,
             rife_status=rife_status,
@@ -311,7 +315,7 @@ with gr.Blocks() as demo:
 
     generate_button.click(
         fn=run,
-        inputs=[prompt, negative_prompt, image_input, seed_param, enable_scale, enable_rife],
+        inputs=[prompt, negative_prompt, image_input, seed_param, cfg_param, enable_scale, enable_rife],
         outputs=[video_output, download_video_button, download_gif_button, seed_text],
     )
 

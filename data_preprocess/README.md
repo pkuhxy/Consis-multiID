@@ -82,6 +82,27 @@ python step5_get_caption.py
 python step6_get_video_info.py
 ```
 
+### Step 5 - Organize Data
+
+If you want to train a text to image and video generation model. You need to arrange all the dataset in this [format](https://github.com/PKU-YuanGroup/ConsisID/tree/main/asserts/demo_train_data/dataname):
+
+```
+📦 datasets/
+├── 📂 captions/
+│   ├── 📄 dataname_1.json
+│   ├── 📄 dataname_2.json
+├── 📂 dataname_1/
+│   ├── 📂 refine_bbox_jsons/
+│   ├── 📂 track_masks_data/
+│   ├── 📂 videos/
+├── 📂 dataname_2/
+│   ├── 📂 refine_bbox_jsons/
+│   ├── 📂 track_masks_data/
+│   ├── 📂 videos/
+├── ...
+├── 📄 total_train_data.txt
+```
+
 ## 🔒 Limitation
 
 Although the models used in the current data pipeline are lightweight (e.g., [YOLO](https://github.com/ultralytics/ultralytics), [SAM-2](https://github.com/facebookresearch/sam2/tree/main)), the GPU utilization is relatively low, resulting in longer processing times. We will continue to update the code in the future.

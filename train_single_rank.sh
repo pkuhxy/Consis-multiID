@@ -2,30 +2,16 @@
 export WANDB_MODE="offline"
 # export WANDB_MODE="online"
 
+# For training from scratch
+# export MODEL_PATH="THUDM/CogVideoX-5b-I2V"
+# export CONFIG_PATH="THUDM/CogVideoX-5b-I2V"
+# For finetune ConsisID
 export MODEL_PATH="BestWishYsh/ConsisID-preview"
 export CONFIG_PATH="BestWishYsh/ConsisID-preview"
 export TYPE="i2v"
 export DATASET_PATH="asserts/demo_train_data/total_train_data.txt"
 export OUTPUT_PATH="consisid_finetune_single_rank"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-
-# export HF_DATASETS_OFFLINE=1
-# export TRANSFORMERS_OFFLINE=1
-# export PDSH_RCMD_TYPE=ssh
-# # NCCL setting
-# export GLOO_SOCKET_IFNAME=bond0
-# export NCCL_SOCKET_IFNAME=bond0
-# export NCCL_IB_HCA=mlx5_10:1,mlx5_11:1,mlx5_12:1,mlx5_13:1
-# export NCCL_IB_GID_INDEX=3
-# export NCCL_IB_TC=162
-# export NCCL_IB_TIMEOUT=25
-# export NCCL_PXN_DISABLE=0
-# export NCCL_IB_QPS_PER_CONNECTION=4
-# export NCCL_ALGO=Ring
-# export OMP_NUM_THREADS=1
-# export MKL_NUM_THREADS=1
-# export NCCL_IB_RETRY_CNT=32
-# export NCCL_ALGO=Tree
 
 # if you are not using wth 8 gus, change `accelerate_config_machine_single.yaml` num_processes as your gpu number
 accelerate launch --config_file util/deepspeed_configs/accelerate_config_machine_single.yaml \
@@ -70,10 +56,19 @@ accelerate launch --config_file util/deepspeed_configs/accelerate_config_machine
   --min_distance 3 \
   --min_frames 1 \
   --max_frames 1 \
-  --LFE_num_tokens 32 \
-  --LFE_output_dim 768 \
-  --LFE_heads 12 \
   --cross_attn_interval 2 \
+  --cross_attn_dim_head 128 \
+  --cross_attn_num_heads 16 \
+  --LFE_id_dim 1280 \
+  --LFE_vit_dim 1024 \
+  --LFE_depth 10 \
+  --LFE_dim_head 64 \
+  --LFE_num_heads 16 \
+  --LFE_num_id_token 5 \
+  --LFE_num_querie 32 \
+  --LFE_output_dim 2048 \
+  --LFE_ff_mult 4 \
+  --local_face_scale 1.0 \
   --is_train_face \
   --is_single_face \
   --enable_mask_loss \
