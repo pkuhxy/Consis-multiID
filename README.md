@@ -178,10 +178,21 @@ We recommend the requirements as follows.
 ### Environment
 
 ```bash
+# 0. Clone the repo
 git clone --depth=1 https://github.com/PKU-YuanGroup/ConsisID.git
 cd ConsisID
+
+# 1. Create conda environment
 conda create -n consisid python=3.11.0
 conda activate consisid
+
+# 3. Install PyTorch and other dependencies using conda
+# CUDA 11.8
+conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1  pytorch-cuda=11.8 -c pytorch -c nvidia
+# CUDA 12.1
+conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia
+
+# 4. Install pip dependencies
 pip install -r requirements.txt
 ```
 
