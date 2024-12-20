@@ -295,7 +295,7 @@ with gr.Blocks() as demo:
             image_input,
             negative_prompt=negative_prompt,
             num_inference_steps=50,
-            guidance_scale=7.0,
+            guidance_scale=6.0,
             seed=seed_value,
             scale_status=scale_status,
             rife_status=rife_status,
