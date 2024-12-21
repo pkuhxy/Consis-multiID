@@ -196,6 +196,7 @@ with gr.Blocks() as demo:
 
             with gr.Group():
                 with gr.Column():
+                    num_inference_steps = gr.Slider(1, 100, value=50, step=1, label="Number of Inference Steps")
                     with gr.Row():
                         seed_param = gr.Number(
                             label="Inference Seed (Enter a positive number, -1 for random)", value=42
@@ -288,6 +289,7 @@ with gr.Blocks() as demo:
         prompt,
         negative_prompt,
         image_input,
+        num_inference_steps,
         seed_value,
         cfg_param,
         scale_status,
@@ -298,7 +300,7 @@ with gr.Blocks() as demo:
             prompt,
             image_input,
             negative_prompt=negative_prompt,
-            num_inference_steps=50,
+            num_inference_steps=num_inference_steps,
             guidance_scale=cfg_param,
             seed=seed_value,
             scale_status=scale_status,
@@ -315,7 +317,7 @@ with gr.Blocks() as demo:
 
     generate_button.click(
         fn=run,
-        inputs=[prompt, negative_prompt, image_input, seed_param, cfg_param, enable_scale, enable_rife],
+        inputs=[prompt, negative_prompt, image_input, num_inference_steps, seed_param, cfg_param, enable_scale, enable_rife],
         outputs=[video_output, download_video_button, download_gif_button, seed_text],
     )
 
