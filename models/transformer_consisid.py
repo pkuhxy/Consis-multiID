@@ -743,6 +743,19 @@ class ConsisIDTransformer3DModel(ModelMixin, ConfigMixin, PeftAdapterMixin):
             ]
         )
 
+    def save_face_modules(self, path: str):
+        save_dict = {
+            "local_facial_extractor": self.local_facial_extractor.state_dict(),
+            "perceiver_cross_attention": [ca.state_dict() for ca in self.perceiver_cross_attention],
+        }
+        torch.save(save_dict, path)
+
+    def load_face_modules(self, path: str):
+        checkpoint = torch.load(path, map_location=self.device)
+        self.local_facial_extractor.load_state_dict(checkpoint["local_facial_extractor"])
+        for ca, state_dict in zip(self.perceiver_cross_attention, checkpoint["perceiver_cross_attention"]):
+            ca.load_state_dict(state_dict)
+
     @property
     # Copied from diffusers.models.unets.unet_2d_condition.UNet2DConditionModel.attn_processors
     def attn_processors(self) -> Dict[str, AttentionProcessor]:
