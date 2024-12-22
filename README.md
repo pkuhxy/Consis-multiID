@@ -279,7 +279,7 @@ We found some plugins created by community developers. Thanks for their efforts:
   - ComfyUI Extension. [ComfyUI-ConsisIDWrapper](https://github.com/kijai/ComfyUI-CogVideoXWrapper) (by [@Kijai](https://github.com/kijai)).
   - Jupyter Notebook. [Jupyter-ConsisID](https://colab.research.google.com/github/camenduru/ConsisID-jupyter/blob/main/ConsisID_jupyter.ipynb) (by [@camenduru](https://github.com/camenduru/consisid-tost)).
   - Windows Docker. [🤗Windows-ConsisID](https://huggingface.co/pkuhexianyi/ConsisID-Windows/tree/main) and [🟣Windows-ConsisID](https://www.wisemodel.cn/models/PkuHexianyi/ConsisID-Windows/file) (by [@shizi](https://www.bilibili.com/video/BV1v3iUY4EeQ/?vd_source=ae3f2652765c02e41cdd698b311989e3)).
-  - Diffusers. We need your help to integrate ConsisID into [Diffusers](https://huggingface.co/docs/diffusers). 🙏 **[Need your contribution]**
+  - xDiT. [xDit-ConsisID](https://github.com/xdit-project/xDiT) (by [pkuhxy](https://github.com/pkuhxy) and [feifeibear](https://github.com/feifeibear)).
 
 If you find related work, please let us know. 
 
