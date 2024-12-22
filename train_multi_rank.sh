@@ -67,6 +67,7 @@ accelerate launch --config_file util/deepspeed_configs/accelerate_config_machine
   --LFE_num_querie 32 \
   --LFE_output_dim 2048 \
   --LFE_ff_mult 4 \
+  --LFE_num_scale 5 \
   --local_face_scale 1.0 \
   --is_train_face \
   --is_single_face \
