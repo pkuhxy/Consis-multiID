@@ -58,6 +58,7 @@ def get_args():
     parser.add_argument("--LFE_num_querie", type=int, default=32, help="Number of query tokens in LFE")
     parser.add_argument("--LFE_output_dim", type=int, default=2048, help="Output dimension of LFE")
     parser.add_argument("--LFE_ff_mult", type=int, default=4, help="Multiplication factor for feed-forward network in LFE")
+    parser.add_argument("--LFE_num_scale", type=int, default=5, help="The number of different scales visual feature in LFE")
     parser.add_argument("--local_face_scale", type=float, default=1.0, help="Scaling factor for local facial features")
 
     # EMA

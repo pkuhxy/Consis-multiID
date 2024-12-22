@@ -165,7 +165,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_videos_per_prompt", type=int, default=1, help="Number of videos to generate per prompt")
     parser.add_argument("--dtype", type=str, default="bfloat16", help="The data type for computation (e.g., 'float16' or 'bfloat16')")
     parser.add_argument("--seed", type=int, default=42, help="The seed for reproducibility")
-    # auxiliary Model
+    # auxiliary model arguments
     parser.add_argument("--is_upscale", action='store_true', help="Enable video upscaling (super-resolution) if this flag is set.")
     parser.add_argument("--is_frame_interpolation", action='store_true', help="Enable frame interpolation to increase frame rate if this flag is set.")
 

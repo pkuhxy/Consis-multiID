@@ -374,6 +374,7 @@ def main(args):
         'LFE_num_id_token': args.LFE_num_id_token,
         'LFE_num_querie': args.LFE_num_querie,
         'LFE_ff_mult': args.LFE_ff_mult,
+        'LFE_num_scale': args.LFE_num_scale,
         'local_face_scale': args.local_face_scale,
     }
 

@@ -53,22 +53,22 @@ This repository is the official implementation of ConsisID, a tuning-free DiT-ba
 
 ## 📣 News
 
-* ⏳⏳⏳ Release the full codes & datasets & weights.
-* ⏳⏳⏳ Integrate into Diffusers.
+* ⏳⏳⏳ Release the full code & datasets & weights.
+* `[2024.12.22]`  🔥ConsisID will be merged into [diffusers](https://github.com/huggingface/diffusers) in the next version. So for now, please use `pip install git+https://github.com/SHYuanBest/ConsisID_diffusers.git` to install diffusers dev version. And we have reorganized the code and weight configs, so it's better to update your local files if you have cloned them previously.
 * `[2024.12.09]`  🔥We release the [test set](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data/tree/main/eval) and [metric calculation code](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) used in the paper, now your can measure the metrics on your own machine. Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) for more details.
 * `[2024.12.08]`  🔥The code for <u>data preprocessing</u> is out, which is used to obtain the [training data](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data) required by ConsisID. Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/data_preprocess) for more details.
 * `[2024.12.04]`  Thanks [@shizi](https://www.bilibili.com/video/BV1v3iUY4EeQ/?vd_source=ae3f2652765c02e41cdd698b311989e3) for providing [🤗Windows-ConsisID](https://huggingface.co/pkuhexianyi/ConsisID-Windows/tree/main) and [🟣Windows-ConsisID](https://www.wisemodel.cn/models/PkuHexianyi/ConsisID-Windows/file), which make it easy to run ConsisID on Windows.
 * `[2024.12.01]`  🔥 We provide full text prompts corresponding to all the videos on project page. Click [here](https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/prompt.xlsx) to get and try the demo.
 * `[2024.11.30]`  🔥 We have fixed the [huggingface demo](https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space), welcome to try it.
-* `[2024.11.29]`  🔥 The current codes and weights are our early versions, and the differences with the latest version in [arxiv](https://github.com/PKU-YuanGroup/ConsisID) can be viewed [here](https://github.com/PKU-YuanGroup/ConsisID/tree/main/util/on_going_module). And we will release the full codes in the next few days.
+* `[2024.11.29]`  🔥 The current code and weights are our early versions, and the differences with the latest version in [arxiv](https://github.com/PKU-YuanGroup/ConsisID) can be viewed [here](https://github.com/PKU-YuanGroup/ConsisID/tree/main/util/on_going_module). And we will release the full code in the next few days.
 * `[2024.11.28]`  Thanks [@camenduru](https://twitter.com/camenduru) for providing [Jupyter Notebook](https://colab.research.google.com/github/camenduru/ConsisID-jupyter/blob/main/ConsisID_jupyter.ipynb) and [@Kijai](https://github.com/kijai) for providing ComfyUI Extension [ComfyUI-ConsisIDWrapper](https://github.com/kijai/ComfyUI-CogVideoXWrapper). If you find related work, please let us know.
-* `[2024.11.27]`  🔥 Due to policy restrictions, we only open-source part of the dataset. You can download it by clicking [here](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). And we will release the data processing codes in the next few days.
+* `[2024.11.27]`  🔥 Due to policy restrictions, we only open-source part of the dataset. You can download it by clicking [here](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). And we will release the data processing code in the next few days.
 * `[2024.11.26]`  🔥 We release the arXiv paper for ConsisID, and you can click [here](https://arxiv.org/abs/2411.17440) to see more details.
-* `[2024.11.22]`  🔥 **All codes & datasets** are coming soon! Stay tuned 👀!
+* `[2024.11.22]`  🔥 **All code & datasets** are coming soon! Stay tuned 👀!
 
 ## 😍 Gallery
 
-Identity-Preserving Text-to-Video Generation.
+Identity-Preserving Text-to-Video Generation. (Some best prompts [here](https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/prompt.xlsx))
 
 [![Demo Video of ConsisID](https://github.com/user-attachments/assets/634248f6-1b54-4963-88d6-34fa7263750b)](https://www.youtube.com/watch?v=PhlgC-bI5SQ)
 or you can click <a href="https://github.com/SHYuanBest/shyuanbest_media/raw/refs/heads/main/ConsisID/showcase_videos.mp4">here</a> to watch the video.
@@ -77,6 +77,7 @@ or you can click <a href="https://github.com/SHYuanBest/shyuanbest_media/raw/ref
 ### Diffusers API
 
 ```bash
+!pip install git+https://github.com/SHYuanBest/ConsisID_diffusers.git
 import torch
 from diffusers import ConsisIDPipeline
 from diffusers.pipelines.consisid.consisid_utils import prepare_face_models, process_face_embeddings_infer
@@ -308,7 +309,7 @@ We release the data used for evaluation in [ConsisID](https://huggingface.co/pap
 
 ## ✏️ Citation
 
-If you find our paper and codes useful in your research, please consider giving a star :star: and citation :pencil:.
+If you find our paper and code useful in your research, please consider giving a star :star: and citation :pencil:.
 
 ```BibTeX
 @article{yuan2024identity,

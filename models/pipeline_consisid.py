@@ -14,7 +14,7 @@
 
 import inspect
 import math
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Any, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
@@ -24,6 +24,7 @@ from transformers import T5EncoderModel, T5Tokenizer
 
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
+from diffusers.loaders import ConsisIDLoraLoaderMixin
 from diffusers.models import AutoencoderKLCogVideoX, ConsisIDTransformer3DModel
 from diffusers.models.embeddings import get_3d_rotary_pos_embed
 from diffusers.pipelines.consisid.pipeline_output import ConsisIDPipelineOutput
@@ -241,7 +242,7 @@ def retrieve_latents(
         raise AttributeError("Could not access latents of provided encoder_output")
 
 
-class ConsisIDPipeline(DiffusionPipeline):
+class ConsisIDPipeline(DiffusionPipeline, ConsisIDLoraLoaderMixin):
     r"""
     Pipeline for image-to-video generation using ConsisID.
 
@@ -278,8 +279,8 @@ class ConsisIDPipeline(DiffusionPipeline):
         tokenizer: T5Tokenizer,
         text_encoder: T5EncoderModel,
         vae: AutoencoderKLCogVideoX,
-        transformer: Union[ConsisIDTransformer3DModel],
-        scheduler: Union[CogVideoXDDIMScheduler, CogVideoXDPMScheduler],
+        transformer: ConsisIDTransformer3DModel,
+        scheduler: CogVideoXDPMScheduler,
     ):
         super().__init__()
 
@@ -620,8 +621,8 @@ class ConsisIDPipeline(DiffusionPipeline):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         grid_height = height // (self.vae_scale_factor_spatial * self.transformer.config.patch_size)
         grid_width = width // (self.vae_scale_factor_spatial * self.transformer.config.patch_size)
-        base_size_width = 720 // (self.vae_scale_factor_spatial * self.transformer.config.patch_size)
-        base_size_height = 480 // (self.vae_scale_factor_spatial * self.transformer.config.patch_size)
+        base_size_width = self.transformer.config.sample_width // self.transformer.config.patch_size
+        base_size_height = self.transformer.config.sample_height // self.transformer.config.patch_size
 
         grid_crops_coords = get_resize_crop_region_for_grid(
             (grid_height, grid_width), base_size_width, base_size_height
@@ -631,10 +632,9 @@ class ConsisIDPipeline(DiffusionPipeline):
             crops_coords=grid_crops_coords,
             grid_size=(grid_height, grid_width),
             temporal_size=num_frames,
+            device=device,
         )
 
-        freqs_cos = freqs_cos.to(device=device)
-        freqs_sin = freqs_sin.to(device=device)
         return freqs_cos, freqs_sin
 
     @property
@@ -644,6 +644,10 @@ class ConsisIDPipeline(DiffusionPipeline):
     @property
     def num_timesteps(self):
         return self._num_timesteps
+
+    @property
+    def attention_kwargs(self):
+        return self._attention_kwargs
 
     @property
     def interrupt(self):
@@ -660,7 +664,6 @@ class ConsisIDPipeline(DiffusionPipeline):
         width: int = 720,
         num_frames: int = 49,
         num_inference_steps: int = 50,
-        timesteps: Optional[List[int]] = None,
         guidance_scale: float = 6,
         use_dynamic_cfg: bool = False,
         num_videos_per_prompt: int = 1,
@@ -671,6 +674,7 @@ class ConsisIDPipeline(DiffusionPipeline):
         negative_prompt_embeds: Optional[torch.FloatTensor] = None,
         output_type: str = "pil",
         return_dict: bool = True,
+        attention_kwargs: Optional[Dict[str, Any]] = None,
         callback_on_step_end: Optional[
             Union[Callable[[int, int, Dict], None], PipelineCallback, MultiPipelineCallbacks]
         ] = None,
@@ -705,16 +709,17 @@ class ConsisIDPipeline(DiffusionPipeline):
             num_inference_steps (`int`, *optional*, defaults to 50):
                 The number of denoising steps. More denoising steps usually lead to a higher quality image at the
                 expense of slower inference.
-            timesteps (`List[int]`, *optional*):
-                Custom timesteps to use for the denoising process with schedulers which support a `timesteps` argument
-                in their `set_timesteps` method. If not defined, the default behavior when `num_inference_steps` is
-                passed will be used. Must be in descending order.
             guidance_scale (`float`, *optional*, defaults to 6):
                 Guidance scale as defined in [Classifier-Free Diffusion Guidance](https://arxiv.org/abs/2207.12598).
                 `guidance_scale` is defined as `w` of equation 2. of [Imagen
                 Paper](https://arxiv.org/pdf/2205.11487.pdf). Guidance scale is enabled by setting `guidance_scale >
                 1`. Higher guidance scale encourages to generate images that are closely linked to the text `prompt`,
                 usually at the expense of lower image quality.
+            use_dynamic_cfg (`bool`, *optional*, defaults to `False`):
+                If True, dynamically adjusts the guidance scale during inference. This allows the model to use a
+                progressive guidance scale, improving the balance between text-guided generation and image quality over
+                the course of the inference steps. Typically, early inference steps use a higher guidance scale for
+                more faithful image generation, while later steps reduce it for more diverse and natural results.
             num_videos_per_prompt (`int`, *optional*, defaults to 1):
                 The number of videos to generate per prompt.
             generator (`torch.Generator` or `List[torch.Generator]`, *optional*):
@@ -737,6 +742,10 @@ class ConsisIDPipeline(DiffusionPipeline):
             return_dict (`bool`, *optional*, defaults to `True`):
                 Whether or not to return a [`~pipelines.stable_diffusion_xl.StableDiffusionXLPipelineOutput`] instead
                 of a plain tuple.
+            attention_kwargs (`dict`, *optional*):
+                A kwargs dictionary that if specified is passed along to the `AttentionProcessor` as defined under
+                `self.processor` in
+                [diffusers.models.attention_processor](https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/attention_processor.py).
             callback_on_step_end (`Callable`, *optional*):
                 A function that calls at the end of each denoising steps during the inference. The function is called
                 with the following arguments: `callback_on_step_end(self: DiffusionPipeline, step: int, timestep: int,
@@ -749,6 +758,19 @@ class ConsisIDPipeline(DiffusionPipeline):
             max_sequence_length (`int`, defaults to `226`):
                 Maximum sequence length in encoded prompt. Must be consistent with
                 `self.transformer.config.max_text_seq_length` otherwise may lead to poor results.
+            id_vit_hidden (`Optional[torch.Tensor]`, *optional*):
+                The tensor representing the hidden features extracted from the face model, which are used to condition
+                the local facial extractor. This is crucial for the model to obtain high-frequency information of the
+                face. If not provided, the local facial extractor will not run normally.
+            id_cond (`Optional[torch.Tensor]`, *optional*):
+                The tensor representing the hidden features extracted from the clip model, which are used to condition
+                the local facial extractor. This is crucial for the model to edit facial features If not provided, the
+                local facial extractor will not run normally.
+            kps_cond (`Optional[torch.Tensor]`, *optional*):
+                A tensor that determines whether the global facial extractor use keypoint information for conditioning.
+                If provided, this tensor controls whether facial keypoints such as eyes, nose, and mouth landmarks are
+                used during the generation process. This helps ensure the model retains more facial low-frequency
+                information.
 
         Examples:
 
@@ -757,13 +779,13 @@ class ConsisIDPipeline(DiffusionPipeline):
             [`~pipelines.consisid.pipeline_output.ConsisIDPipelineOutput`] if `return_dict` is True, otherwise a
             `tuple`. When returning a tuple, the first element is a list with the generated images.
         """
-        if num_frames > 49:
-            raise ValueError(
-                "The number of frames must be less than 49 for now due to static positional embeddings. This will be updated in the future to remove this limitation."
-            )
 
         if isinstance(callback_on_step_end, (PipelineCallback, MultiPipelineCallbacks)):
             callback_on_step_end_tensor_inputs = callback_on_step_end.tensor_inputs
+
+        height = height or self.transformer.config.sample_height * self.vae_scale_factor_spatial
+        width = width or self.transformer.config.sample_width * self.vae_scale_factor_spatial
+        num_frames = num_frames or self.transformer.config.sample_frames
 
         num_videos_per_prompt = 1
 
@@ -780,6 +802,7 @@ class ConsisIDPipeline(DiffusionPipeline):
             negative_prompt_embeds=negative_prompt_embeds,
         )
         self._guidance_scale = guidance_scale
+        self._attention_kwargs = attention_kwargs
         self._interrupt = False
 
         # 2. Default call parameters
@@ -812,7 +835,7 @@ class ConsisIDPipeline(DiffusionPipeline):
             prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
 
         # 4. Prepare timesteps
-        timesteps, num_inference_steps = retrieve_timesteps(self.scheduler, num_inference_steps, device, timesteps)
+        timesteps, num_inference_steps = retrieve_timesteps(self.scheduler, num_inference_steps, device)
         self._num_timesteps = len(timesteps)
 
         # 5. Prepare latents
@@ -859,6 +882,7 @@ class ConsisIDPipeline(DiffusionPipeline):
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             # for DPM-solver++
             old_pred_original_sample = None
+            timesteps_cpu = timesteps.cpu()
             for i, t in enumerate(timesteps):
                 if self.interrupt:
                     continue
@@ -878,6 +902,7 @@ class ConsisIDPipeline(DiffusionPipeline):
                     encoder_hidden_states=prompt_embeds,
                     timestep=timestep,
                     image_rotary_emb=image_rotary_emb,
+                    attention_kwargs=attention_kwargs,
                     return_dict=False,
                     id_vit_hidden=id_vit_hidden,
                     id_cond=id_cond,
@@ -887,7 +912,14 @@ class ConsisIDPipeline(DiffusionPipeline):
                 # perform guidance
                 if use_dynamic_cfg:
                     self._guidance_scale = 1 + guidance_scale * (
-                        (1 - math.cos(math.pi * ((num_inference_steps - t.item()) / num_inference_steps) ** 5.0)) / 2
+                        (
+                            1
+                            - math.cos(
+                                math.pi
+                                * ((num_inference_steps - timesteps_cpu[i].item()) / num_inference_steps) ** 5.0
+                            )
+                        )
+                        / 2
                     )
                 if do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
