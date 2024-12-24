@@ -7,7 +7,7 @@ import os
 from huggingface_hub import hf_hub_download
 from tqdm import tqdm
 from ultralytics import YOLO
-from util.download_weights import download_file
+from util.download_weights_data import download_file
 
 
 def parse_args():

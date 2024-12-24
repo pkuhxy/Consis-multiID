@@ -363,6 +363,6 @@ if __name__ == "__main__":
         print("Model not found, downloading from Hugging Face and Github...")
         hf_hub_download(repo_id="facebook/sam2.1-hiera-large", filename="sam2.1_hiera_large.pt", local_dir=args.sam2_checkpoint_path)
     else:
-        print(f"Model already exists in {args.model_path}, skipping download.")
+        print(f"Model already exists in {args.sam2_checkpoint_path}, skipping download.")
 
     main(args.json_folder, args.video_folder, args.output_path, sam2_checkpoint, args.model_cfg)
