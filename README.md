@@ -54,15 +54,16 @@ This repository is the official implementation of ConsisID, a tuning-free DiT-ba
 ## 📣 News
 
 * ⏳⏳⏳ Release the full code & datasets & weights.
-* `[2024.12.22]`  🔥ConsisID will be merged into [diffusers](https://github.com/huggingface/diffusers) in the next version. So for now, please use `pip install git+https://github.com/SHYuanBest/ConsisID_diffusers.git` to install diffusers dev version. And we have reorganized the code and weight configs, so it's better to update your local files if you have cloned them previously.
+* `[2024.12.24]`  🚀 We release the [parallel inference code](https://github.com/PKU-YuanGroup/ConsisID/tree/main/parallel_inference) for ConsisID powered by [xDiT](https://github.com/xdit-project/xDiT). Thanks [@feifeibear](https://github.com/feifeibear) for his help.
+* `[2024.12.22]`  🤗 ConsisID will be merged into [diffusers](https://github.com/huggingface/diffusers) in the next version. So for now, please use `pip install git+https://github.com/SHYuanBest/ConsisID_diffusers.git` to install diffusers dev version. And we have reorganized the code and weight configs, so it's better to update your local files if you have cloned them previously.
 * `[2024.12.09]`  🔥We release the [test set](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data/tree/main/eval) and [metric calculation code](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) used in the paper, now your can measure the metrics on your own machine. Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) for more details.
 * `[2024.12.08]`  🔥The code for <u>data preprocessing</u> is out, which is used to obtain the [training data](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data) required by ConsisID. Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/data_preprocess) for more details.
 * `[2024.12.04]`  Thanks [@shizi](https://www.bilibili.com/video/BV1v3iUY4EeQ/?vd_source=ae3f2652765c02e41cdd698b311989e3) for providing [🤗Windows-ConsisID](https://huggingface.co/pkuhexianyi/ConsisID-Windows/tree/main) and [🟣Windows-ConsisID](https://www.wisemodel.cn/models/PkuHexianyi/ConsisID-Windows/file), which make it easy to run ConsisID on Windows.
 * `[2024.12.01]`  🔥 We provide full text prompts corresponding to all the videos on project page. Click [here](https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/prompt.xlsx) to get and try the demo.
-* `[2024.11.30]`  🔥 We have fixed the [huggingface demo](https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space), welcome to try it.
-* `[2024.11.29]`  🔥 The current code and weights are our early versions, and the differences with the latest version in [arxiv](https://github.com/PKU-YuanGroup/ConsisID) can be viewed [here](https://github.com/PKU-YuanGroup/ConsisID/tree/main/util/on_going_module). And we will release the full code in the next few days.
+* `[2024.11.30]`  🤗 We have fixed the [huggingface demo](https://huggingface.co/spaces/BestWishYsh/ConsisID-preview-Space), welcome to try it.
+* `[2024.11.29]`  🏃‍♂️ The current code and weights are our early versions, and the differences with the latest version in [arxiv](https://github.com/PKU-YuanGroup/ConsisID) can be viewed [here](https://github.com/PKU-YuanGroup/ConsisID/tree/main/util/on_going_module). And we will release the full code in the next few days.
 * `[2024.11.28]`  Thanks [@camenduru](https://twitter.com/camenduru) for providing [Jupyter Notebook](https://colab.research.google.com/github/camenduru/ConsisID-jupyter/blob/main/ConsisID_jupyter.ipynb) and [@Kijai](https://github.com/kijai) for providing ComfyUI Extension [ComfyUI-ConsisIDWrapper](https://github.com/kijai/ComfyUI-CogVideoXWrapper). If you find related work, please let us know.
-* `[2024.11.27]`  🔥 Due to policy restrictions, we only open-source part of the dataset. You can download it by clicking [here](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). And we will release the data processing code in the next few days.
+* `[2024.11.27]`  🏃‍♂️ Due to policy restrictions, we only open-source part of the dataset. You can download it by clicking [here](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data). And we will release the data processing code in the next few days.
 * `[2024.11.26]`  🔥 We release the arXiv paper for ConsisID, and you can click [here](https://arxiv.org/abs/2411.17440) to see more details.
 * `[2024.11.22]`  🔥 **All code & datasets** are coming soon! Stay tuned 👀!
 
@@ -279,7 +280,8 @@ We found some plugins created by community developers. Thanks for their efforts:
   - ComfyUI Extension. [ComfyUI-ConsisIDWrapper](https://github.com/kijai/ComfyUI-CogVideoXWrapper) (by [@Kijai](https://github.com/kijai)).
   - Jupyter Notebook. [Jupyter-ConsisID](https://colab.research.google.com/github/camenduru/ConsisID-jupyter/blob/main/ConsisID_jupyter.ipynb) (by [@camenduru](https://github.com/camenduru/consisid-tost)).
   - Windows Docker. [🤗Windows-ConsisID](https://huggingface.co/pkuhexianyi/ConsisID-Windows/tree/main) and [🟣Windows-ConsisID](https://www.wisemodel.cn/models/PkuHexianyi/ConsisID-Windows/file) (by [@shizi](https://www.bilibili.com/video/BV1v3iUY4EeQ/?vd_source=ae3f2652765c02e41cdd698b311989e3)).
-  - xDiT. [xDit-ConsisID](https://github.com/xdit-project/xDiT) (by [pkuhxy](https://github.com/pkuhxy) and [feifeibear](https://github.com/feifeibear)).
+  - Diffusres. [Diffusers-ConsisID](https://github.com/huggingface/diffusers) (thanks [@arrow](https://github.com/a-r-r-o-w), [@yiyixuxu](https://github.com/yiyixuxu), [@hlky](https://github.com/hlky) and [@stevhliu](https://github.com/stevhliu) for their help).
+  - xDiT. [xDit-ConsisID](https://github.com/xdit-project/xDiT) (thanks [@feifeibear](https://github.com/feifeibear) for his help).
 
 If you find related work, please let us know. 
 
