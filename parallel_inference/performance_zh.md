@@ -1,6 +1,6 @@
 ## ConsisID Performance Report
 
-[ConsisID](https://github.com/PKU-YuanGroup/ConsisID) 是一种身份保持的文本到视频生成模型，其通过频率分解在生成的视频中保持面部一致性。[xDiT](https://github.com/xdit-project/xDiT)目前整合了USP技术（包括Ulysses注意力和Ring注意力）和CFG并行来提高推理速度，同时PipeFusion整合工作正在进行中。我们对基于diffusers库的单GPU ConsisID推理与我们提出的并行化版本在生成49帧（6秒）720x480分辨率视频时的性能差异进行了深入分析。由于我们可以任意组合不同的并行方式以获得不同的性能。在本文中，我们对xDiT在1-6张H100（Nvidia）GPU上的加速性能进行了系统测试。
+[ConsisID](https://github.com/PKU-YuanGroup/ConsisID) 是一种身份保持的文本到视频生成模型，其通过频率分解在生成的视频中保持面部一致性。[xDiT](https://github.com/xdit-project/xDiT)目前整合了USP技术（包括Ulysses Attention和Ring Attention）和Classifier-Free Guidance（CFG）来提高推理速度，同时我们还将整合PipeFusion策略。我们对基于diffusers库的单GPU ConsisID推理与我们提出的并行化版本在生成49帧（6秒）720x480分辨率视频时的性能差异进行了深入分析。由于我们可以任意组合不同的并行方式以获得不同的性能。在本文中，我们对xDiT在1-6张H100（Nvidia）GPU上的加速性能进行了系统测试。
 
 如表所示，对于模型ConsisID，无论是采用Ulysses Attention、Ring Attention还是Classifier-Free Guidance（CFG）并行，均观察到推理延迟的显著降低。值得注意的是，由于其较低的通信开销，CFG并行方法在性能上优于其他两种技术。通过结合序列并行和CFG并行，我们成功提升了推理效率。随着并行度的增加，推理延迟持续下降。在最优配置下，xDiT相对于单GPU推理实现了3.21倍的加速，使得每次迭代仅需0.72秒。鉴于ConsisID默认的50次迭代，总计35秒即可完成49帧视频的端到端生成，并且运行过程中占用GPU显存40G。
 
