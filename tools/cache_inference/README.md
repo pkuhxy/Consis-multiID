@@ -1,4 +1,4 @@
-<!-- ## **TeaCache4HunyuanVideo** -->
+<!-- ## **TeaCache4ConsisID** -->
 # TeaCache4ConsisID
 
 [TeaCache](https://github.com/LiewFeng/TeaCache) can speedup [ConsisID](https://github.com/PKU-YuanGroup/ConsisID) 2x without much visual quality degradation, in a training-free manner.
