@@ -27,11 +27,6 @@
 This repository is the official implementation of ConsisID, a tuning-free DiT-based controllable IPT2V model to keep human-identity consistent in the generated video. The approach draws inspiration from previous studies on frequency analysis of vision/diffusion transformers.
 </div>
 
-
-
-
-
-
 <br>
 
 <details open><summary>💡 We also have other video generation projects that may interest you ✨. </summary><p>
@@ -54,7 +49,8 @@ This repository is the official implementation of ConsisID, a tuning-free DiT-ba
 ## 📣 News
 
 * ⏳⏳⏳ Release the full code & datasets & weights.
-* `[2024.12.24]`  🚀 We release the [parallel inference code](https://github.com/PKU-YuanGroup/ConsisID/tree/main/parallel_inference) for ConsisID powered by [xDiT](https://github.com/xdit-project/xDiT). Thanks [@feifeibear](https://github.com/feifeibear) for his help.
+* `[2024.12.26]`  🚀 We release the [cache inference code](https://github.com/PKU-YuanGroup/ConsisID/tree/main/tools/cache_inference) for ConsisID powered by [TeaCache](https://github.com/LiewFeng/TeaCache). Thanks [@LiewFeng](https://github.com/LiewFeng) for his help.
+* `[2024.12.24]`  🚀 We release the [parallel inference code](https://github.com/PKU-YuanGroup/ConsisID/tree/main/tools/parallel_inference) for ConsisID powered by [xDiT](https://github.com/xdit-project/xDiT). Thanks [@feifeibear](https://github.com/feifeibear) for his help.
 * `[2024.12.22]`  🤗 ConsisID will be merged into [diffusers](https://github.com/huggingface/diffusers) in the next version. So for now, please use `pip install git+https://github.com/SHYuanBest/ConsisID_diffusers.git` to install diffusers dev version. And we have reorganized the code and weight configs, so it's better to update your local files if you have cloned them previously.
 * `[2024.12.09]`  🔥We release the [test set](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data/tree/main/eval) and [metric calculation code](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) used in the paper, now your can measure the metrics on your own machine. Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/eval) for more details.
 * `[2024.12.08]`  🔥The code for <u>data preprocessing</u> is out, which is used to obtain the [training data](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data) required by ConsisID. Please refer to [this guide](https://github.com/PKU-YuanGroup/ConsisID/tree/main/data_preprocess) for more details.
@@ -173,6 +169,25 @@ pipe.vae.enable_tiling()
 ```
 warning: it will cost more time in inference and may also reduce the quality.
 
+## 🚀 Parallel Inference on Multiple GPUs by xDiT
+
+[xDiT](https://github.com/xdit-project/xDiT) is a Scalable Inference Engine for Diffusion Transformers (DiTs) on multi-GPU Clusters. It has successfully provided low-latency parallel inference solutions for a variety of DiTs models. For example, to generate a video with 6 GPUs, you can use the following command:
+
+```
+cd tools/parallel_inference
+bash run.sh
+# run_usp.sh
+```
+
+## 🚀 Cache Inference by TeaCache
+
+[TeaCache](https://github.com/LiewFeng/TeaCache) is a training-free caching approach that estimates and leverages the fluctuating differences among model outputs across timesteps, thereby accelerate the inference.  For example, you can use the following command:
+
+```
+cd tools/cache_inference
+bash run.sh
+```
+
 ## ⚙️ Requirements and Installation
 
 We recommend the requirements as follows.
@@ -282,6 +297,7 @@ We found some plugins created by community developers. Thanks for their efforts:
   - Windows Docker. [🤗Windows-ConsisID](https://huggingface.co/pkuhexianyi/ConsisID-Windows/tree/main) and [🟣Windows-ConsisID](https://www.wisemodel.cn/models/PkuHexianyi/ConsisID-Windows/file) (by [@shizi](https://www.bilibili.com/video/BV1v3iUY4EeQ/?vd_source=ae3f2652765c02e41cdd698b311989e3)).
   - Diffusres. [Diffusers-ConsisID](https://github.com/huggingface/diffusers) (thanks [@arrow](https://github.com/a-r-r-o-w), [@yiyixuxu](https://github.com/yiyixuxu), [@hlky](https://github.com/hlky) and [@stevhliu](https://github.com/stevhliu) for their help).
   - xDiT. [xDiT-ConsisID](https://github.com/xdit-project/xDiT) (thanks [@feifeibear](https://github.com/feifeibear) for his help).
+  - TeaCache. [TeaCache-ConsisID](https://github.com/LiewFeng/TeaCache) (thanks [@LiewFeng](https://github.com/LiewFeng) for his help).
 
 If you find related work, please let us know. 
 

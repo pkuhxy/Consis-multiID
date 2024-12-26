@@ -1,4 +1,4 @@
-## ConsisID Performance Report
+## xDiT-ConsisID Performance Report
 
 [ConsisID](https://github.com/PKU-YuanGroup/ConsisID) is an identity-preserving text-to-video generation model that keeps the face consistent in the generated video by frequency decomposition. [xDiT](https://github.com/xdit-project/xDiT) currently integrates USP techniques, including Ulysses Attention, Ring Attention, and CFG parallelization, to enhance inference speed, while work on PipeFusion is ongoing. We conducted an in-depth analysis comparing single-GPU ConsisID inference, based on the diffusers library, with our proposed parallelized version for generating 49 frames (6 seconds) of 720x480 resolution video. By flexibly combining different parallelization methods, we achieved varying performance outcomes. In this study, we systematically evaluate xDiT's acceleration performance across 1 to 6 Nvidia H100 GPUs.
 

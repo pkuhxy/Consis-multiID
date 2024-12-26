@@ -1,4 +1,4 @@
-## ConsisID Performance Report
+## xDiT-ConsisID Performance Report
 
 [ConsisID](https://github.com/PKU-YuanGroup/ConsisID) 是一种身份保持的文本到视频生成模型，其通过频率分解在生成的视频中保持面部一致性。[xDiT](https://github.com/xdit-project/xDiT)目前整合了USP技术（包括Ulysses Attention和Ring Attention）和Classifier-Free Guidance（CFG）来提高推理速度，同时我们还将整合PipeFusion策略。我们对基于diffusers库的单GPU ConsisID推理与我们提出的并行化版本在生成49帧（6秒）720x480分辨率视频时的性能差异进行了深入分析。由于我们可以任意组合不同的并行方式以获得不同的性能。在本文中，我们对xDiT在1-6张H100（Nvidia）GPU上的加速性能进行了系统测试。
 
