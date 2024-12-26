@@ -1,4 +1,4 @@
-# <u>Data Preprocessing Pipeline</u> by *ConsisID*
+# <u>Data Preprocessing Pipeline</u> by *ConsisID* (Support Multi-ID Annotation)
 This repo describes how to process [ConsisID-Preview-Data](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data) datasets in the [ConsisID](https://arxiv.org/abs/2411.17440) paper.
 
 ## ⚙️ Requirements and Installation
@@ -40,7 +40,7 @@ Once ready, the weights will be organized in this format:
 
 ## 🗝️ Usage
 
-### Step 0 - Split Transition
+### Step 0 - Split Transition (Optional)
 
 To ensure data purity, we first use [PySceneDetect](https://github.com/Breakthrough/PySceneDetect/tree/main) to split the video into multiple single-scene clips. (You can skip this step and directly use the multi-scene clips for training)
 
@@ -105,4 +105,5 @@ If you want to train a text to image and video generation model. You need to arr
 
 ## 🔒 Limitation
 
-Although the models used in the current data pipeline are lightweight (e.g., [YOLO](https://github.com/ultralytics/ultralytics), [SAM-2](https://github.com/facebookresearch/sam2/tree/main)), the GPU utilization is relatively low, resulting in longer processing times. We will continue to update the code in the future.
+- Although the models used in the current data pipeline are lightweight (e.g., [YOLO](https://github.com/ultralytics/ultralytics), [SAM-2](https://github.com/facebookresearch/sam2/tree/main)), the GPU utilization is relatively low, resulting in longer processing times. We will continue to update the code in the future.
+- The data preprocess code support multi-face annotation, but the training code only support single-face currently.
