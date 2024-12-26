@@ -181,7 +181,7 @@ bash run.sh
 
 ## 🚀 Cache Inference by TeaCache
 
-[TeaCache](https://github.com/LiewFeng/TeaCache) is a training-free caching approach that estimates and leverages the fluctuating differences among model outputs across timesteps, thereby accelerate the inference.  For example, you can use the following command:
+[TeaCache](https://github.com/LiewFeng/TeaCache) is a training-free caching approach that estimates and leverages the fluctuating differences among model outputs across timesteps, thereby accelerating the inference.  For example, you can use the following command:
 
 ```
 cd tools/cache_inference
