@@ -958,53 +958,53 @@ class ConsisID_Dataset(Dataset):
         return self.num_instance_videos
 
     def __getitem__(self, idx):
-        sample = {}
-        if self.is_train_face:
-            pixel_values, cap, data_type, video_dir, expand_face_imgs, dense_masks_tensor, selected_frame_index, reserve_face_imgs, original_face_imgs = self.get_batch(idx)
-            sample["instance_prompt"] = self.id_token + cap
-            sample["instance_video"] = pixel_values
-            sample["video_path"] = video_dir
-            if self.is_train_face:
-                sample["expand_face_imgs"] = expand_face_imgs
-                sample["dense_masks_tensor"] = dense_masks_tensor
-                sample["selected_frame_index"] = selected_frame_index
-                if reserve_face_imgs is not None:
-                    sample["reserve_face_imgs"] = reserve_face_imgs
-                if original_face_imgs is not None:
-                    sample["original_face_imgs"] = original_face_imgs
-        else:
-            pixel_values, cap, data_type, video_dir = self.get_batch(idx)
-            sample["instance_prompt"] = self.id_token + cap
-            sample["instance_video"] = pixel_values
-            sample["video_path"] = video_dir
-        return sample
-
-        # while True:
-        #     sample = {}
-        #     try:
-        #         if self.is_train_face:
-        #             pixel_values, cap, data_type, video_dir, expand_face_imgs, dense_masks_tensor, selected_frame_index, reserve_face_imgs, original_face_imgs = self.get_batch(idx)
-        #             sample["instance_prompt"] = self.id_token + cap
-        #             sample["instance_video"] = pixel_values
-        #             sample["video_path"] = video_dir
-        #             if self.is_train_face:
-        #                 sample["expand_face_imgs"] = expand_face_imgs
-        #                 sample["dense_masks_tensor"] = dense_masks_tensor
-        #                 sample["selected_frame_index"] = selected_frame_index
-        #                 if reserve_face_imgs is not None:
-        #                     sample["reserve_face_imgs"] = reserve_face_imgs
-        #                 if original_face_imgs is not None:
-        #                     sample["original_face_imgs"] = original_face_imgs
-        #         else:
-        #             pixel_values, cap, data_type, video_dir, = self.get_batch(idx)
-        #             sample["instance_prompt"] = self.id_token + cap
-        #             sample["instance_video"] = pixel_values
-        #             sample["video_path"] = video_dir
-        #         break
-        #     except Exception as e:
-        #         error_message = str(e)
-        #         video_path = self.instance_video_paths[idx % len(self.instance_video_paths)]
-        #         print(error_message, video_path)
-        #         log_error_to_file(error_message, video_path)
-        #         idx = random.randint(0, self.num_instance_videos - 1)
+        # sample = {}
+        # if self.is_train_face:
+        #     pixel_values, cap, data_type, video_dir, expand_face_imgs, dense_masks_tensor, selected_frame_index, reserve_face_imgs, original_face_imgs = self.get_batch(idx)
+        #     sample["instance_prompt"] = self.id_token + cap
+        #     sample["instance_video"] = pixel_values
+        #     sample["video_path"] = video_dir
+        #     if self.is_train_face:
+        #         sample["expand_face_imgs"] = expand_face_imgs
+        #         sample["dense_masks_tensor"] = dense_masks_tensor
+        #         sample["selected_frame_index"] = selected_frame_index
+        #         if reserve_face_imgs is not None:
+        #             sample["reserve_face_imgs"] = reserve_face_imgs
+        #         if original_face_imgs is not None:
+        #             sample["original_face_imgs"] = original_face_imgs
+        # else:
+        #     pixel_values, cap, data_type, video_dir = self.get_batch(idx)
+        #     sample["instance_prompt"] = self.id_token + cap
+        #     sample["instance_video"] = pixel_values
+        #     sample["video_path"] = video_dir
         # return sample
+
+        while True:
+            sample = {}
+            try:
+                if self.is_train_face:
+                    pixel_values, cap, data_type, video_dir, expand_face_imgs, dense_masks_tensor, selected_frame_index, reserve_face_imgs, original_face_imgs = self.get_batch(idx)
+                    sample["instance_prompt"] = self.id_token + cap
+                    sample["instance_video"] = pixel_values
+                    sample["video_path"] = video_dir
+                    if self.is_train_face:
+                        sample["expand_face_imgs"] = expand_face_imgs
+                        sample["dense_masks_tensor"] = dense_masks_tensor
+                        sample["selected_frame_index"] = selected_frame_index
+                        if reserve_face_imgs is not None:
+                            sample["reserve_face_imgs"] = reserve_face_imgs
+                        if original_face_imgs is not None:
+                            sample["original_face_imgs"] = original_face_imgs
+                else:
+                    pixel_values, cap, data_type, video_dir, = self.get_batch(idx)
+                    sample["instance_prompt"] = self.id_token + cap
+                    sample["instance_video"] = pixel_values
+                    sample["video_path"] = video_dir
+                break
+            except Exception as e:
+                error_message = str(e)
+                video_path = self.instance_video_paths[idx % len(self.instance_video_paths)]
+                print(error_message, video_path)
+                log_error_to_file(error_message, video_path)
+                idx = random.randint(0, self.num_instance_videos - 1)
+        return sample
