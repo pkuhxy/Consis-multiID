@@ -84,7 +84,7 @@ python step6_get_video_info.py
 
 ### Step 5 - Organize Data
 
-If you want to train a text to image and video generation model. You need to arrange all the dataset in this [format](https://github.com/PKU-YuanGroup/ConsisID/tree/main/asserts/demo_train_data/dataname):
+If you want to train your own identity-preserving text-to-video generation model, you need to arrange all the dataset in this [format](https://github.com/PKU-YuanGroup/ConsisID/tree/main/asserts/demo_train_data/dataname):
 
 ```
 📦 datasets/
