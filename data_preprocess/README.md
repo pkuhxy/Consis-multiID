@@ -103,6 +103,17 @@ If you want to train your own identity-preserving text-to-video generation model
 ├── 📄 total_train_data.txt
 ```
 
+### Step 6 - Get Summary Data Txt
+
+Do not add spaces before and after the commas, otherwise you will get an error. An example can be found [here](https://github.com/PKU-YuanGroup/ConsisID/blob/main/asserts/demo_train_data/total_train_data.txt).
+```
+#video_path,caption_path,dataset_name
+dataname_videos,dataname_captions.json,dataname
+dataname_1_videos,dataname_1_captions.json,dataname_1
+...
+dataname_n_videos,dataname_n_captions.json,dataname_n
+```
+
 ## 🔒 Limitation
 
 - Although the models used in the current data pipeline are lightweight (e.g., [YOLO](https://github.com/ultralytics/ultralytics), [SAM-2](https://github.com/facebookresearch/sam2/tree/main)), the GPU utilization is relatively low, resulting in longer processing times. We will continue to update the code in the future.
