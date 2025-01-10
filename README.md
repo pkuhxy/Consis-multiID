@@ -298,6 +298,7 @@ We found some plugins created by community developers. Thanks for their efforts:
   - Diffusres. [Diffusers-ConsisID](https://github.com/huggingface/diffusers) (thanks [@arrow](https://github.com/a-r-r-o-w), [@yiyixuxu](https://github.com/yiyixuxu), [@hlky](https://github.com/hlky) and [@stevhliu](https://github.com/stevhliu) for their help).
   - xDiT. [xDiT-ConsisID](https://github.com/xdit-project/xDiT) (thanks [@feifeibear](https://github.com/feifeibear) for his help).
   - TeaCache. [TeaCache-ConsisID](https://github.com/LiewFeng/TeaCache) (thanks [@LiewFeng](https://github.com/LiewFeng) for his help).
+  - [Ingredients](https://github.com/feizc/Ingredients): A powerful way to customize video creations by incorporating multiple specific identity (ID) photos, based on ConsisID.
 
 If you find related work, please let us know. 
 
