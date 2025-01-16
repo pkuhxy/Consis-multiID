@@ -623,7 +623,6 @@ class ConsisID_Dataset(Dataset):
         self.instance_annotation_base_paths = []
         for sub_root, anno, anno_base in tqdm(folder_anno):
             print(anno)
-            self.instance_annotation_base_paths.append(anno_base)
             with open(anno, 'r') as f:
                 sub_list = json.load(f)
             for i in tqdm(sub_list):
@@ -637,6 +636,7 @@ class ConsisID_Dataset(Dataset):
 
                 self.instance_prompts.append(cap)
                 self.instance_video_paths.append(path)
+                self.instance_annotation_base_paths.append(anno_base)
 
         self.num_instance_videos = len(self.instance_video_paths)
 
