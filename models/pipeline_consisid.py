@@ -24,16 +24,13 @@ from transformers import T5EncoderModel, T5Tokenizer
 
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback
 from diffusers.image_processor import PipelineImageInput
-from diffusers.loaders import ConsisIDLoraLoaderMixin
+from diffusers.loaders import CogVideoXLoraLoaderMixin
 from diffusers.models import AutoencoderKLCogVideoX, ConsisIDTransformer3DModel
 from diffusers.models.embeddings import get_3d_rotary_pos_embed
 from diffusers.pipelines.consisid.pipeline_output import ConsisIDPipelineOutput
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
-from diffusers.schedulers import CogVideoXDDIMScheduler, CogVideoXDPMScheduler
-from diffusers.utils import (
-    logging,
-    replace_example_docstring,
-)
+from diffusers.schedulers import CogVideoXDPMScheduler
+from diffusers.utils import logging, replace_example_docstring
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.video_processor import VideoProcessor
 
@@ -242,7 +239,7 @@ def retrieve_latents(
         raise AttributeError("Could not access latents of provided encoder_output")
 
 
-class ConsisIDPipeline(DiffusionPipeline, ConsisIDLoraLoaderMixin):
+class ConsisIDPipeline(DiffusionPipeline, CogVideoXLoraLoaderMixin):
     r"""
     Pipeline for image-to-video generation using ConsisID.
 

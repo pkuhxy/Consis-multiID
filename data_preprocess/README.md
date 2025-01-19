@@ -1,6 +1,12 @@
 # <u>Data Preprocessing Pipeline</u> by *ConsisID* (Support Multi-ID Annotation)
 This repo describes how to process your own data like [ConsisID-Preview-Data](https://huggingface.co/datasets/BestWishYsh/ConsisID-preview-Data) datasets in the [ConsisID](https://arxiv.org/abs/2411.17440) paper.
 
+## 🎉 Overview
+
+<div align=center>
+<img src="https://github.com/user-attachments/assets/f9a1dc9b-befb-44ee-8a4d-cef89e717dde">
+</div>
+
 ## ⚙️ Requirements and Installation
 
 We recommend the requirements as follows.

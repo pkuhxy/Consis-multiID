@@ -5,7 +5,7 @@ export WANDB_MODE="offline"
 # For training from scratch
 # export MODEL_PATH="THUDM/CogVideoX-5b-I2V"
 # export CONFIG_PATH="THUDM/CogVideoX-5b-I2V"
-# For finetune ConsisID
+# For finetuning ConsisID
 export MODEL_PATH="BestWishYsh/ConsisID-preview"
 export CONFIG_PATH="BestWishYsh/ConsisID-preview"
 export TYPE="i2v"

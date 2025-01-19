@@ -48,6 +48,7 @@ from models.consisid_utils import (
     resize_numpy_image_long,
     tensor_to_pil,
 )
+from models.dataloader import ConsisID_Dataset, RandomSampler, SequentialSampler
 from models.pipeline_cogvideox import CogVideoXPipeline
 from models.pipeline_consisid import ConsisIDPipeline, draw_kps
 from models.transformer_consisid import ConsisIDTransformer3DModel
@@ -57,7 +58,6 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer, T5EncoderModel
 from transformers.utils import ContextManagers
-from util.dataloader import ConsisID_Dataset, RandomSampler, SequentialSampler
 from util.utils import get_args, pixel_values_to_pil, resize_mask
 
 import diffusers
@@ -632,7 +632,8 @@ def main(args):
                 lora_alpha=args.lora_alpha,
                 init_lora_weights=True,
                 target_modules=["to_k", "to_q", "to_v", "to_out.0"],
-                exclude_modules=unfreeze_modules,
+                # Need to check 'exclude_modules'
+                # exclude_modules=unfreeze_modules,
             )
             transformer.add_adapter(transformer_lora_config)
 
