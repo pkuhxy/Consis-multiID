@@ -215,7 +215,7 @@ pip install -r requirements.txt
 
 ### Download ConsisID
 
-The weights are available at [🤗HuggingFace](https://huggingface.co/BestWishYsh/ConsisID-preview) and [🟣WiseModel](https://wisemodel.cn/models/SHYuanBest/ConsisID-Preview/file), and will be automatically downloaded when runing `app.py` and `infer.py`, or you can download it with the following commands.
+The weights are available at [🤗HuggingFace](https://huggingface.co/BestWishYsh/ConsisID-preview), [🤖ModelScope](https://modelscope.cn/models/BestWishYSH/ConsisID-preview) and [🟣WiseModel](https://wisemodel.cn/models/SHYuanBest/ConsisID-Preview/file), and will be automatically downloaded when runing `app.py` and `infer.py`, or you can download it with the following commands.
 
 ```bash
 # way 1
@@ -230,6 +230,11 @@ BestWishYsh/ConsisID-preview \
 --local-dir ckpts
 
 # way 3
+modelscope download --model \
+BestWishYSH/ConsisID-preview \
+--local-dir ckpts
+
+# way 4
 git lfs install
 git clone https://www.wisemodel.cn/SHYuanBest/ConsisID-Preview.git
 ```
