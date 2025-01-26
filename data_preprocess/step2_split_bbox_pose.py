@@ -28,7 +28,7 @@ def is_face_large_enough_v2(face_boxes, threshold=0):
     return False
 
 
-def extract_useful_frames(json_file, video_file_path, min_valid_frames=10, tolerance=3):
+def extract_useful_frames(json_file, video_file_path, min_valid_frames=16, tolerance=3):
     with open(json_file, 'r') as f:
         data = json.load(f)
 
@@ -40,8 +40,8 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=10, toler
     cap.release()
 
     for frame_num in range(len(data)):
-        if str(frame_num) in data and data[str(frame_num)]['face']:
-            face_boxes = data[str(frame_num)]['face']
+        if str(frame_num) in data and data[str(frame_num)]['person']:
+            face_boxes = data[str(frame_num)]['person']
             if is_face_large_enough_v2(face_boxes):
                 current_segment.append(frame_num)
                 non_face_count = 0
@@ -52,7 +52,7 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=10, toler
                         non_face_count += 1
                     else:
                         while non_face_count > 0:
-                            if not is_face_large_enough_v2(data[str(current_segment[-1])]['face']):
+                            if not is_face_large_enough_v2(data[str(current_segment[-1])]['person']):
                                 current_segment.pop()
                                 non_face_count -= 1
                             else:
@@ -68,7 +68,7 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=10, toler
                     non_face_count += 1
                 else:
                     while non_face_count > 0:
-                        if not is_face_large_enough_v2(data[str(current_segment[-1])]['face']):
+                        if not is_face_large_enough_v2(data[str(current_segment[-1])]['person']):
                             current_segment.pop()
                             non_face_count -= 1
                         else:
@@ -80,7 +80,7 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=10, toler
 
     if current_segment and len(current_segment) >= min_valid_frames:
         while non_face_count > 0:
-            if not is_face_large_enough_v2(data[str(current_segment[-1])]['face']):
+            if not is_face_large_enough_v2(data[str(current_segment[-1])]['person']):
                 current_segment.pop()
                 non_face_count -= 1
             else:
@@ -94,34 +94,14 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=10, toler
 def is_valid_frame(frame_data):
     for person in frame_data:
         visible = person['keypoints']['visible']
-        if all(visible[i] >= 0.5 for i in range(3)):
+        # is_full_face = all(visible[i] >= 0.6 for i in range(3))  # 0: Nose, 1: Left Eye, 2: Right Eye
+        is_half_face = (
+            visible[0] >= 0.6 and 
+            (visible[1] >= 0.6 or visible[2] >= 0.6)  # Nose and at least one eye visible
+        )
+        if is_half_face:
             return True
     return False
-
-
-def extract_valid_segments(json_data, tolerance=5, min_length=10):
-    valid_segments = []
-    current_segment = []
-    consecutive_invalid_count = 0
-
-    for frame_idx, frame_data in json_data.items():
-        if is_valid_frame(frame_data):
-            current_segment.append(int(frame_idx))
-            consecutive_invalid_count = 0
-        else:
-            consecutive_invalid_count += 1
-            if consecutive_invalid_count <= tolerance:
-                current_segment.append(int(frame_idx))
-            else:
-                if len(current_segment) >= min_length:
-                    valid_segments.append(current_segment)
-                current_segment = []
-                consecutive_invalid_count = 0
-
-    if len(current_segment) >= min_length:
-        valid_segments.append(current_segment)
-
-    return valid_segments
 
 
 def merge_segments(useful_frames_bbox, segments_pose):
@@ -179,23 +159,44 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, tolerance
     valid_segments = []
     current_segment = []
     consecutive_invalid_count = 0
+    started_segment = False
 
     for frame_idx, frame_data in filtered_pose_json_data.items():
         if is_valid_frame(frame_data):
+            if not started_segment:
+                started_segment = True
             current_segment.append(int(frame_idx))
             consecutive_invalid_count = 0
         else:
+            if not started_segment:
+                continue
             consecutive_invalid_count += 1
             if consecutive_invalid_count <= tolerance:
                 current_segment.append(int(frame_idx))
             else:
-                if len(current_segment) >= min_length:
-                    valid_segments.append(current_segment)
+                trim_idx = len(current_segment) - 1
+                while trim_idx >= 0:
+                    tail_key = str(current_segment[trim_idx])
+                    if is_valid_frame(filtered_pose_json_data[tail_key]):
+                        break
+                    trim_idx -= 1
+                final_segment = current_segment[:trim_idx+1]
+                if len(final_segment) >= min_length:
+                    valid_segments.append(final_segment)
                 current_segment = []
                 consecutive_invalid_count = 0
+                started_segment = False
 
     if len(current_segment) >= min_length:
-        valid_segments.append(current_segment)
+        trim_idx = len(current_segment) - 1
+        while trim_idx >= 0:
+            tail_key = str(current_segment[trim_idx])
+            if is_valid_frame(filtered_pose_json_data[tail_key]):
+                break
+            trim_idx -= 1
+        final_segment = current_segment[:trim_idx+1]
+        if len(final_segment) >= min_length:
+            valid_segments.append(final_segment)
 
     return valid_segments
 

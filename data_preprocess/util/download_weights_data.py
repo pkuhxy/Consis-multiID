@@ -40,8 +40,8 @@ if not os.path.exists(os.path.join(model_path, "data_process", "sam2.1_hiera_lar
 if not os.path.exists(os.path.join(model_path, "data_process", "Qwen2-VL-7B-Instruct")):
     snapshot_download(repo_id="Qwen/Qwen2-VL-7B-Instruct", local_dir=os.path.join(model_path, "data_process", "Qwen2-VL-7B-Instruct"))
 
-if not os.path.exists(os.path.join(model_path, "data_process", "yolov8l-worldv2.pt")):
-    download_file("https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8l-worldv2.pt", os.path.join(model_path, "data_process", "yolov8l-worldv2.pt"))
+if not os.path.exists(os.path.join(model_path, "data_process", "yolo11l.pt")):
+    download_file("https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l.pt", os.path.join(model_path, "data_process", "yolo11l.pt"))
 
-if not os.path.exists(os.path.join(model_path, "data_process", "yolov8l-pose.pt")):
-    download_file("https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8l-pose.pt", os.path.join(model_path, "data_process", "yolov8l-pose.pt"))
+if not os.path.exists(os.path.join(model_path, "data_process", "yolo11l-pose.pt")):
+    download_file("https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l-pose.pt", os.path.join(model_path, "data_process", "yolo11l-pose.pt"))
