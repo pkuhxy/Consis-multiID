@@ -162,7 +162,13 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_lengt
     consecutive_invalid_count = 0
     started_segment = False
 
-    for frame_idx, frame_data in filtered_pose_json_data.items():
+    frame_keys = sorted(filtered_pose_json_data.keys(), key=lambda x: int(x))
+    
+    i = 0
+    while i < len(frame_keys):
+        frame_idx = frame_keys[i]
+        frame_data = filtered_pose_json_data[frame_idx]
+
         if is_valid_frame(frame_data):
             if not started_segment:
                 started_segment = True
@@ -170,7 +176,9 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_lengt
             consecutive_invalid_count = 0
         else:
             if not started_segment:
+                i += 1
                 continue
+
             consecutive_invalid_count += 1
             if consecutive_invalid_count <= tolerance:
                 current_segment.append(int(frame_idx))
@@ -181,12 +189,20 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_lengt
                     if is_valid_frame(filtered_pose_json_data[tail_key]):
                         break
                     trim_idx -= 1
+
                 final_segment = current_segment[:trim_idx+1]
                 if len(final_segment) >= min_length:
                     valid_segments.append(final_segment)
+
+                # Restart segment and rollback to recheck frames
+                rollback_start = max(0, i - tolerance)
+                i = rollback_start - 1  # `-1` because `i` will be incremented in the next iteration
+
                 current_segment = []
                 consecutive_invalid_count = 0
                 started_segment = False
+
+        i += 1
 
     if len(current_segment) >= min_length:
         trim_idx = len(current_segment) - 1
@@ -195,6 +211,7 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_lengt
             if is_valid_frame(filtered_pose_json_data[tail_key]):
                 break
             trim_idx -= 1
+
         final_segment = current_segment[:trim_idx+1]
         if len(final_segment) >= min_length:
             valid_segments.append(final_segment)
