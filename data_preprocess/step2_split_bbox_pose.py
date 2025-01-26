@@ -28,7 +28,7 @@ def is_face_large_enough_v2(face_boxes, threshold=0):
     return False
 
 
-def extract_useful_frames(json_file, video_file_path, min_valid_frames=16, tolerance=3):
+def extract_useful_frames(json_file, video_file_path, min_valid_frames=16, tolerance=5):
     with open(json_file, 'r') as f:
         data = json.load(f)
 
@@ -155,7 +155,7 @@ def process_and_save_video(input_video_path, merged_segments, input_json_data, o
     print("Processing completed for the necessary segments.")
 
 
-def extract_valid_segments_from_filtered_data(filtered_pose_json_data, tolerance=5, min_length=10):
+def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_length=16, tolerance=5):
     valid_segments = []
     current_segment = []
     consecutive_invalid_count = 0
@@ -209,13 +209,13 @@ def process_video(input_video_path, input_json_path, output_video_folder, output
         json_data = json.load(f)
 
     # Step 1: Extract useful frames from bbox data
-    useful_frames_bbox = extract_useful_frames(bbox_json_file, input_video_path)
+    useful_frames_bbox = extract_useful_frames(bbox_json_file, input_video_path, tolerance=math.ceil(0.05*len(json_data)))
 
     # Step 2: Filter pose data based on the useful frames from bbox
     filtered_pose_json_data = {str(idx): json_data[str(idx)]['pose'] for segment in useful_frames_bbox for idx in segment}
 
     # Step 3: Extract valid segments from filtered pose data
-    segments_pose = extract_valid_segments_from_filtered_data(filtered_pose_json_data)
+    segments_pose = extract_valid_segments_from_filtered_data(filtered_pose_json_data, tolerance=math.ceil(0.025*len(json_data)))
 
     # Step 4: Merge bbox and pose segments
     merged_segments = merge_segments(useful_frames_bbox, segments_pose)
