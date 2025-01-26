@@ -34,14 +34,21 @@ def parse_args():
     return parser.parse_args()
 
 
+def filter_by_confidence(objects, key, threshold=0.6):
+    return [obj for obj in objects.get(key, []) if obj.get('confidence', 0) > threshold]
+
+
 def estimate_num_people(data):
     max_people_PlanA = 0
     max_people_PlanB = 0
     max_people_PlanC = 0
     for frame_id, objects in data.items():
-        num_persons = len(objects.get('person', []))
-        num_heads = len(objects.get('head', []))
-        num_faces = len(objects.get('face', []))
+        filtered_faces = filter_by_confidence(objects, 'face')
+        filtered_heads = filter_by_confidence(objects, 'head')
+        filtered_persons = filter_by_confidence(objects, 'person')
+        num_faces = len(filtered_faces)
+        num_heads = len(filtered_heads)
+        num_persons = len(filtered_persons)
         if num_persons == num_heads == num_faces:
             max_people_PlanA = max(max_people_PlanA, num_persons)
         if num_persons == num_heads:
