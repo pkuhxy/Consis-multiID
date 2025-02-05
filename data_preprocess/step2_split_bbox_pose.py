@@ -29,7 +29,7 @@ def is_face_large_enough_v2(face_boxes, threshold=0):
     return False
 
 
-def extract_useful_frames(json_file, video_file_path, min_valid_frames=16, tolerance=5):
+def extract_useful_frames(json_file, video_file_path, min_valid_frames=49, tolerance=5):
     with open(json_file, 'r') as f:
         data = json.load(f)
 
@@ -98,7 +98,7 @@ def is_valid_frame(frame_data):
         # is_full_face = all(visible[i] >= 0.6 for i in range(3))  # 0: Nose, 1: Left Eye, 2: Right Eye
         is_half_face = (
             visible[0] >= 0.6 and 
-            (visible[1] >= 0.6 and visible[2] >= 0.6)  # Nose and at least one eye visible
+            (visible[1] >= 0.6 or visible[2] >= 0.6)  # Nose and at least one eye visible
         )
         if is_half_face:
             return True
@@ -156,7 +156,7 @@ def process_and_save_video(input_video_path, merged_segments, input_json_data, o
     print("Processing completed for the necessary segments.")
 
 
-def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_length=16, tolerance=5):
+def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_valid_frames=49, tolerance=5):
     valid_segments = []
     current_segment = []
     consecutive_invalid_count = 0
