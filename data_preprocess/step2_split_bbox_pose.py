@@ -191,7 +191,7 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_valid
                     trim_idx -= 1
 
                 final_segment = current_segment[:trim_idx+1]
-                if len(final_segment) >= min_length:
+                if len(final_segment) >= min_valid_frames:
                     valid_segments.append(final_segment)
 
                 # Restart segment and rollback to recheck frames
@@ -204,7 +204,7 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_valid
 
         i += 1
 
-    if len(current_segment) >= min_length:
+    if len(current_segment) >= min_valid_frames:
         trim_idx = len(current_segment) - 1
         while trim_idx >= 0:
             tail_key = str(current_segment[trim_idx])
@@ -213,7 +213,7 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_valid
             trim_idx -= 1
 
         final_segment = current_segment[:trim_idx+1]
-        if len(final_segment) >= min_length:
+        if len(final_segment) >= min_valid_frames:
             valid_segments.append(final_segment)
 
     return valid_segments
