@@ -41,8 +41,8 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=16, toler
     cap.release()
 
     for frame_num in range(len(data)):
-        if str(frame_num) in data and data[str(frame_num)]['person']:
-            face_boxes = data[str(frame_num)]['person']
+        if str(frame_num) in data and data[str(frame_num)]['face']:
+            face_boxes = data[str(frame_num)]['face']
             if is_face_large_enough_v2(face_boxes):
                 current_segment.append(frame_num)
                 non_face_count = 0
@@ -53,7 +53,7 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=16, toler
                         non_face_count += 1
                     else:
                         while non_face_count > 0:
-                            if not is_face_large_enough_v2(data[str(current_segment[-1])]['person']):
+                            if not is_face_large_enough_v2(data[str(current_segment[-1])]['face']):
                                 current_segment.pop()
                                 non_face_count -= 1
                             else:
@@ -69,7 +69,7 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=16, toler
                     non_face_count += 1
                 else:
                     while non_face_count > 0:
-                        if not is_face_large_enough_v2(data[str(current_segment[-1])]['person']):
+                        if not is_face_large_enough_v2(data[str(current_segment[-1])]['face']):
                             current_segment.pop()
                             non_face_count -= 1
                         else:
@@ -81,7 +81,7 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=16, toler
 
     if current_segment and len(current_segment) >= min_valid_frames:
         while non_face_count > 0:
-            if not is_face_large_enough_v2(data[str(current_segment[-1])]['person']):
+            if not is_face_large_enough_v2(data[str(current_segment[-1])]['face']):
                 current_segment.pop()
                 non_face_count -= 1
             else:
@@ -98,7 +98,7 @@ def is_valid_frame(frame_data):
         # is_full_face = all(visible[i] >= 0.6 for i in range(3))  # 0: Nose, 1: Left Eye, 2: Right Eye
         is_half_face = (
             visible[0] >= 0.6 and 
-            (visible[1] >= 0.6 or visible[2] >= 0.6)  # Nose and at least one eye visible
+            (visible[1] >= 0.6 and visible[2] >= 0.6)  # Nose and at least one eye visible
         )
         if is_half_face:
             return True
