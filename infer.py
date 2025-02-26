@@ -94,6 +94,9 @@ def generate_video(
                                                                             face_main_model, device, dtype,
                                                                             img_file_path, is_align_face=True)
 
+
+    # import ipdb; ipdb.set_trace()
+
     prompt = prompt.strip('"')
     if negative_prompt:
         negative_prompt = negative_prompt.strip('"')
@@ -150,7 +153,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate a video from a text prompt using ConsisID")
 
     # ckpt arguments
-    parser.add_argument("--model_path", type=str, default="ckpts", help="The path of the pre-trained model to be used")
+    parser.add_argument("--model_path", type=str, default="/storage/hxy/ID/ckpts/consisID", help="The path of the pre-trained model to be used")
     parser.add_argument("--lora_path", type=str, default=None, help="The path of the LoRA weights to be used")
     parser.add_argument("--lora_rank", type=int, default=128, help="The rank of the LoRA weights")
     # input arguments

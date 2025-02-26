@@ -151,6 +151,11 @@ def process_face_embeddings(
         raise RuntimeError("facexlib align face fail")
     align_face = face_helper_1.cropped_faces[0]  # (512, 512, 3)  # RGB
 
+    image = Image.fromarray(align_face)
+    image.save("/storage/hxy/ID/Consis-multiID/output/output_image.png")
+
+    import ipdb; ipdb.set_trace()
+
     # incase insightface didn't detect face
     if id_ante_embedding is None:
         print("fail to detect face using insightface, extract embedding on align face")
@@ -192,6 +197,8 @@ def process_face_embeddings(
     id_cond = torch.cat(
         [id_ante_embedding, id_cond_vit], dim=-1
     )  # torch.Size([1, 512]), torch.Size([1, 768])  ->  torch.Size([1, 1280])
+
+    import ipdb; ipdb.set_trace()
 
     return (
         id_cond,

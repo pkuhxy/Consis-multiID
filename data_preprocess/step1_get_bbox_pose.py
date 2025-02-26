@@ -9,12 +9,14 @@ from tqdm import tqdm
 from ultralytics import YOLO
 from util.download_weights_data import download_file
 
+from util.prepare_models import prepare_face_models
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Process MP4 files with YOLO models.")
-    parser.add_argument('--input_video_folder', type=str, default='step0/videos', help='Path to the folder containing MP4 files.')
-    parser.add_argument('--output_json_folder', type=str, default='step0/json', help='Directory for output files.')
-    parser.add_argument("--model_path", type=str, default="../ckpts", help="The path of the pre-trained model to be used")
+    parser.add_argument('--input_video_folder', type=str, default='/storage/hxy/ID/data/test_source_videos', help='Path to the folder containing MP4 files.')
+    parser.add_argument('--output_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/step1', help='Directory for output files.')
+    parser.add_argument("--model_path", type=str, default="/storage/hxy/ID/ckpts/consisID", help="The path of the pre-trained model to be used")
     parser.add_argument('--num_processes', type=int, default=1, help='Number of processes to use.')
     return parser.parse_args()
 

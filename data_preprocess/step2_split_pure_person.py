@@ -11,11 +11,11 @@ from tqdm import tqdm
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Processing Parameters")
-    parser.add_argument('--input_video_folder', type=str, default='step0/videos', help='Directory containing input videos (default: input_videos)')
-    parser.add_argument('--input_json_folder', type=str, default='step0/json', help='Directory containing JSON files for bbox (default: step0/bbox)')
-    parser.add_argument('--output_video_folder', type=str, default='step1/videos', help='Directory to store output videos (default: step1/videos)')
-    parser.add_argument('--output_json_folder', type=str, default='step1/json', help='Directory to store output JSON files (default: step1/bbox)')
-    parser.add_argument('--num_processes', type=int, default=1, help="Max number of parallel workers")
+    parser.add_argument('--input_video_folder', type=str, default='/remote-home1/ysh/1_Code/4_MultiID/1_test_videos', help='Directory containing input videos (default: input_videos)')
+    parser.add_argument('--input_json_folder', type=str, default='step1/bbox', help='Directory containing JSON files for bbox (default: step0/bbox)')
+    parser.add_argument('--output_video_folder', type=str, default='step2/videos', help='Directory to store output videos (default: step1/videos)')
+    parser.add_argument('--output_json_folder', type=str, default='step2/bbox', help='Directory to store output JSON files (default: step1/bbox)')
+    parser.add_argument('--num_processes', type=int, default=16, help="Max number of parallel workers")
     args = parser.parse_args()
     return args
 
@@ -29,7 +29,7 @@ def is_face_large_enough_v2(face_boxes, threshold=0):
     return False
 
 
-def extract_useful_frames(json_file, video_file_path, min_valid_frames=49, tolerance=5):
+def extract_useful_frames(json_file, video_file_path, min_valid_frames=81, tolerance=5):
     with open(json_file, 'r') as f:
         data = json.load(f)
 
@@ -41,20 +41,20 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=49, toler
     cap.release()
 
     for frame_num in range(len(data)):
-        if str(frame_num) in data and data[str(frame_num)]['face']:   
-            face_boxes = data[str(frame_num)]['face']            
-            if is_face_large_enough_v2(face_boxes):                
-                current_segment.append(frame_num)                  
-                non_face_count = 0                                 
-            else:                                                  
-                if current_segment:                                
-                    if non_face_count < tolerance:                 
-                        current_segment.append(frame_num)          
-                        non_face_count += 1                       
-                    else:                                          
-                        while non_face_count > 0:                  
-                            if not is_face_large_enough_v2(data[str(current_segment[-1])]['face']):   
-                                current_segment.pop()              
+        if str(frame_num) in data and data[str(frame_num)]['face']:
+            face_boxes = data[str(frame_num)]['face']
+            if is_face_large_enough_v2(face_boxes):
+                current_segment.append(frame_num)
+                non_face_count = 0
+            else:
+                if current_segment:
+                    if non_face_count < tolerance:
+                        current_segment.append(frame_num)
+                        non_face_count += 1
+                    else:
+                        while non_face_count > 0:
+                            if not is_face_large_enough_v2(data[str(current_segment[-1])]['face']):
+                                current_segment.pop()
                                 non_face_count -= 1
                             else:
                                 break
@@ -96,6 +96,8 @@ def is_valid_frame(frame_data):
     for person in frame_data:
         visible = person['keypoints']['visible']
         # is_full_face = all(visible[i] >= 0.6 for i in range(3))  # 0: Nose, 1: Left Eye, 2: Right Eye
+        # if is_full_face:
+        #     return True
         is_half_face = (
             visible[0] >= 0.6 and 
             (visible[1] >= 0.6 or visible[2] >= 0.6)  # Nose and at least one eye visible
@@ -156,12 +158,13 @@ def process_and_save_video(input_video_path, merged_segments, input_json_data, o
     print("Processing completed for the necessary segments.")
 
 
-def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_valid_frames=49, tolerance=5):
+def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_valid_frames=81, tolerance=5):
     valid_segments = []
     current_segment = []
     consecutive_invalid_count = 0
     started_segment = False
 
+    # for frame_idx, frame_data in filtered_pose_json_data.items():
     frame_keys = sorted(filtered_pose_json_data.keys(), key=lambda x: int(x))
     
     i = 0
@@ -194,6 +197,10 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_valid
                 if len(final_segment) >= min_valid_frames:
                     valid_segments.append(final_segment)
 
+                # current_segment = []
+                # consecutive_invalid_count = 0
+                # started_segment = False
+                
                 # Restart segment and rollback to recheck frames
                 rollback_start = max(0, i - tolerance)
                 i = rollback_start - 1  # `-1` because `i` will be incremented in the next iteration
@@ -249,6 +256,8 @@ def main():
     os.makedirs(args.output_json_folder, exist_ok=True)
 
     video_files = [f for f in os.listdir(args.input_video_folder) if f.endswith(".mp4")]
+
+    # process_video(os.path.join(args.input_video_folder, "/remote-home1/ysh/1_Code/4_MultiID/0_test_videos/3.mp4"), args.input_json_folder, args.output_video_folder, args.output_json_folder)
 
     with ThreadPoolExecutor(max_workers=args.num_processes) as executor:
         futures = [

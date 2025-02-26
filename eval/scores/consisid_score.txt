@@ -1,0 +1,80 @@
+Image: 1.png, Video: 1.mp4
+cur score: 0.6873513851314783
+arc score: 0.6407288210466504
+fid score: 234.0858154296875
+
+Image: 0.png, Video: 0.mp4
+cur score: 0.3988860733807087
+arc score: 0.3871700707823038
+fid score: 303.3773822784424
+
+Image: 5.png, Video: 5.mp4
+cur score: 0.886538203805685
+arc score: 0.8576971851289272
+fid score: 160.39625644683838
+
+Image: 6.png, Video: 6.mp4
+cur score: 0.7083731591701508
+arc score: 0.6836413480341434
+fid score: 186.2936601638794
+
+Image: 2.png, Video: 2.mp4
+cur score: 0.7215239852666855
+arc score: 0.6897827498614788
+fid score: 190.08207845687866
+
+Image: 7.png, Video: 7.mp4
+cur score: 0.28316335566341877
+arc score: 0.2976061496883631
+fid score: 213.7137279510498
+
+Image: 4.png, Video: 4.mp4
+cur score: 0.3927059508860111
+arc score: 0.32896714098751545
+fid score: 260.04910945892334
+
+Image: 3.png, Video: 3.mp4
+cur score: 0.3849879503250122
+arc score: 0.36339624784886837
+fid score: 125.71943140029907
+
+Image: 1.png, Video: 1.mp4
+cur score: 0.6873779641464353
+arc score: 0.6407590329181403
+fid score: 234.05574417114258
+
+Image: 0.png, Video: 0.mp4
+cur score: 0.3988846018910408
+arc score: 0.38720173574984074
+fid score: 303.2529067993164
+
+Image: 5.png, Video: 5.mp4
+cur score: 0.8865463957190514
+arc score: 0.8576799631118774
+fid score: 160.33551168441772
+
+Image: 6.png, Video: 6.mp4
+cur score: 0.7083536982536316
+arc score: 0.683606144040823
+fid score: 186.2501678466797
+
+Image: 2.png, Video: 2.mp4
+cur score: 0.7214974611997604
+arc score: 0.6898030713200569
+fid score: 190.0921540260315
+
+Image: 7.png, Video: 7.mp4
+cur score: 0.283168843947351
+arc score: 0.2976097846403718
+fid score: 213.7203254699707
+
+Image: 4.png, Video: 4.mp4
+cur score: 0.3926428835839033
+arc score: 0.32886168360710144
+fid score: 259.90459632873535
+
+Image: 3.png, Video: 3.mp4
+cur score: 0.38498841412365437
+arc score: 0.3633947838097811
+fid score: 125.74985074996948
+

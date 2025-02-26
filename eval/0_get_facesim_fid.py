@@ -187,12 +187,76 @@ def process_video(video_path, face_arc_model, face_cur_model, fid_model, arcface
     return avg_cur_score, avg_arc_score, avg_fid_score
 
 
+# def main():
+#     device = "cuda"
+#     model_path = "/storage/hxy/ID/ckpts/consisID"
+#     video_path = "/storage/hxy/ID/data/infer/vidu/0.mp4"
+#     image_path = "/storage/hxy/ID/data/ID/0.png"
+#     results_file_path = "/storage/hxy/ID/Consis-multiID/eval/scores/facesim_fid_score.txt"
+
+#     if not os.path.exists(model_path):
+#         print("Model not found, downloading from Hugging Face...")
+#         snapshot_download(repo_id="BestWishYsh/ConsisID-preview", local_dir=model_path)
+#     else:
+#         print(f"Model already exists in {model_path}, skipping download.")
+
+#     face_arc_path = os.path.join(model_path, "face_encoder")
+#     face_cur_path = os.path.join(face_arc_path, "glint360k_curricular_face_r101_backbone.bin")
+
+#     # Initialize FaceEncoder model for face detection and embedding extraction
+#     face_arc_model = FaceAnalysis(root=face_arc_path, providers=['CUDAExecutionProvider'])
+#     face_arc_model.prepare(ctx_id=0, det_size=(320, 320))
+
+#     # Load face recognition model
+#     face_cur_model = get_model('IR_101')([112, 112])
+#     face_cur_model.load_state_dict(torch.load(face_cur_path, map_location="cpu"))
+#     face_cur_model = face_cur_model.to(device)
+#     face_cur_model.eval()
+
+#     # Load InceptionV3 model for FID calculation
+#     # fid_model = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT)
+#     fid_model = models.inception_v3(pretrained=False)  # 不加载预训练权重
+#     fid_model.load_state_dict(torch.load('/storage/hxy/ID/ckpts/inception_v3_google-0cc3c7bd.pth'))  # 从本地加载权重
+#     fid_model.fc = torch.nn.Identity()  # Remove final classification layer
+#     fid_model.eval()
+#     fid_model = fid_model.to(device)
+
+#     # Process the single video and image pair
+#     # Extract embeddings and features from the image
+#     align_face_image, arcface_image_embedding = process_image(face_arc_model, image_path)
+#     if align_face_image is None:
+#         print(f"Error processing image at {image_path}")
+#         return
+
+#     cur_image_embedding = inference(face_cur_model, align_face_image, device)
+#     align_face_image_pil = Image.fromarray(align_face_image)
+#     real_image = load_image(align_face_image_pil).to(device)
+#     real_activations = get_activations(real_image, fid_model)
+
+#     # Process the video and calculate scores
+#     cur_score, arc_score, fid_score = process_video(
+#         video_path, face_arc_model, face_cur_model, fid_model,
+#         arcface_image_embedding, cur_image_embedding, real_activations, device
+#     )
+
+#     # Write results to file
+#     with open(results_file_path, 'w') as f:
+#         f.write(f"cur score: {cur_score}\n")
+#         f.write(f"arc score: {arc_score}\n")
+#         f.write(f"fid score: {fid_score}\n")
+
+#     # Print results
+#     print(f"cur score: {cur_score}")
+#     print(f"arc score: {arc_score}")
+#     print(f"fid score: {fid_score}")
+
+
 def main():
     device = "cuda"
-    model_path = "../ckpts"
-    video_path = "path/your.mp4"
-    image_path = "path/your.png"
-    results_file_path = "facesim_fid_score.txt"
+    model_path = "/storage/hxy/ID/ckpts/consisID"
+    video_folder = "/storage/hxy/ID/data/infer/consisID"  # 视频文件夹路径
+    image_folder = "/storage/hxy/ID/data/ID"  # 图像文件夹路径
+    results_file_path = "/storage/hxy/ID/Consis-multiID/eval/scores/consisid_score.txt"
 
     if not os.path.exists(model_path):
         print("Model not found, downloading from Hugging Face...")
@@ -214,39 +278,55 @@ def main():
     face_cur_model.eval()
 
     # Load InceptionV3 model for FID calculation
-    fid_model = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT)
+    fid_model = models.inception_v3(pretrained=False)
+    fid_model.load_state_dict(torch.load('/storage/hxy/ID/ckpts/inception_v3_google-0cc3c7bd.pth'))
     fid_model.fc = torch.nn.Identity()  # Remove final classification layer
     fid_model.eval()
     fid_model = fid_model.to(device)
 
-    # Process the single video and image pair
-    # Extract embeddings and features from the image
-    align_face_image, arcface_image_embedding = process_image(face_arc_model, image_path)
-    if align_face_image is None:
-        print(f"Error processing image at {image_path}")
-        return
+    # 获取图像和视频文件列表
+    image_files = [f for f in os.listdir(image_folder) if f.endswith('.png')]
+    video_files = [f for f in os.listdir(video_folder) if f.endswith('.mp4')]
 
-    cur_image_embedding = inference(face_cur_model, align_face_image, device)
-    align_face_image_pil = Image.fromarray(align_face_image)
-    real_image = load_image(align_face_image_pil).to(device)
-    real_activations = get_activations(real_image, fid_model)
+    # 遍历图像和视频文件，匹配相同文件名前缀
+    for image_file in image_files:
+        image_prefix = os.path.splitext(image_file)[0]  # 获取文件名前缀
+        matching_video = [v for v in video_files if v.startswith(image_prefix)]
 
-    # Process the video and calculate scores
-    cur_score, arc_score, fid_score = process_video(
-        video_path, face_arc_model, face_cur_model, fid_model,
-        arcface_image_embedding, cur_image_embedding, real_activations, device
-    )
+        if not matching_video:
+            print(f"No matching video found for image: {image_file}")
+            continue
 
-    # Write results to file
-    with open(results_file_path, 'w') as f:
-        f.write(f"cur score: {cur_score}\n")
-        f.write(f"arc score: {arc_score}\n")
-        f.write(f"fid score: {fid_score}\n")
+        video_file = matching_video[0]
+        image_path = os.path.join(image_folder, image_file)
+        video_path = os.path.join(video_folder, video_file)
 
-    # Print results
-    print(f"cur score: {cur_score}")
-    print(f"arc score: {arc_score}")
-    print(f"fid score: {fid_score}")
+        # 处理图像和视频对
+        align_face_image, arcface_image_embedding = process_image(face_arc_model, image_path)
+        if align_face_image is None:
+            print(f"Error processing image at {image_path}")
+            continue
+
+        cur_image_embedding = inference(face_cur_model, align_face_image, device)
+        align_face_image_pil = Image.fromarray(align_face_image)
+        real_image = load_image(align_face_image_pil).to(device)
+        real_activations = get_activations(real_image, fid_model)
+
+        # 处理视频并计算分数
+        cur_score, arc_score, fid_score = process_video(
+            video_path, face_arc_model, face_cur_model, fid_model,
+            arcface_image_embedding, cur_image_embedding, real_activations, device
+        )
+
+        # 将结果写入文件
+        with open(results_file_path, 'a') as f:
+            f.write(f"Image: {image_file}, Video: {video_file}\n")
+            f.write(f"cur score: {cur_score}\n")
+            f.write(f"arc score: {arc_score}\n")
+            f.write(f"fid score: {fid_score}\n")
+            f.write("\n")
+
+        # 打印结果
 
 
 if __name__ == "__main__":
