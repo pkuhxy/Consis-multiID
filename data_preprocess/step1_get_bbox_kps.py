@@ -21,7 +21,7 @@ from ultralytics import YOLO
 from util.download_weights_data import download_file
 from facexlib.parsing import init_parsing_model
 from facexlib.utils.face_restoration_helper import FaceRestoreHelper
-
+from util.track_util import IDTracker
 
 # from util.prepare_models import prepare_face_models
 
@@ -33,12 +33,15 @@ from torchvision import transforms
 from PIL import Image
 
 
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Process MP4 files with YOLO models.")
-    parser.add_argument('--input_video_json', type=str, default='/storage/hxy/ID/data/test_source_videos', help='Path to the folder containing MP4 files.')
+    parser.add_argument('--input_video_json', type=str, default='/storage/hxy/ID/data/dataset_check/scripts/istock_1000.json', help='Path to the folder containing MP4 files.')
     parser.add_argument('--output_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/step1', help='Directory for output files.')
-    parser.add_argument('--root', type=str, default='/storage/hxy/ID/data/data_processor/step1', help='Directory for output files.')
-    parser.add_argument('--video_source', type=str, default='/storage/hxy/ID/data/data_processor/step1', help='Directory for output files.')
+    parser.add_argument('--root', type=str, default='/storage/zhubin/meitu/istock', help='Directory for output files.')
+    parser.add_argument('--video_source', type=str, default='test', help='Directory for output files.')
+    parser.add_argument('--threads', type=int, default=12, help='Directory for output files.')
 
     return parser.parse_args()
 
@@ -104,7 +107,11 @@ def pad_np_bgr_image(np_image, scale=1.25):
 def get_faces_info(face_helper, images, cut):
 
     faces_infos = {}
+    origin_infos = {}
     images = images[cut[0]:cut[1]]
+
+    detect_flag = False
+
     for index, image in enumerate(images):
         image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         faces_info = face_helper.get(image_bgr)
@@ -126,6 +133,10 @@ def get_faces_info(face_helper, images, cut):
                 face.bbox = np.minimum(np.maximum(face.bbox.reshape(-1, 2) - sub_coord, min_coord), max_coord).reshape(4)
                 face.kps = face.kps - sub_coord
         
+        if len(faces_info) != 0:
+            detect_flag = True
+
+        origin_infos[index] = faces_info
 
         bboxs = []
         kpss_x = []
@@ -150,11 +161,14 @@ def get_faces_info(face_helper, images, cut):
         faces_infos[index] = info_dict
 
     
-    return faces_infos
-
+    if detect_flag:
+        return faces_infos, origin_infos
+    else:
+        return None, None
 
 def get_faces_info_RetinaFace(face_helper, images, cut):
     faces_infos = {}
+    origin_infos = {}
     images = images[cut[0]:cut[1]]
 
     for index, image in enumerate(images):
@@ -177,6 +191,8 @@ def get_faces_info_RetinaFace(face_helper, images, cut):
                 face.kps = face.kps - sub_coord
         
 
+        
+
         bboxs = []
         kpss_x = []
         kpss_y = []
@@ -197,7 +213,7 @@ def get_faces_info_RetinaFace(face_helper, images, cut):
 
         faces_infos[index] = info_dict
 
-    return faces_infos
+    return faces_infos, origin_infos
     
 
 
@@ -252,7 +268,7 @@ def batch_cosine_similarity(embedding_image, embedding_frames, device="cuda"):
     return torch.nn.functional.cosine_similarity(embedding_image, embedding_frames, dim=-1).cpu().numpy()
 
 
-def save_json(faces_info, output_path):
+def save_json(faces_info, output_path, id_list):
 
     json_data = {}
 
@@ -278,7 +294,7 @@ def save_json(faces_info, output_path):
             kps_info['y'] = kpss_y[index]
 
             id_value = {}
-            id_value['track_id'] = index + 1
+            id_value['track_id'] = id_list[frame][index]
             id_value['box'] = box
             id_value['keypoints'] = kps_info
             id_value['confidence'] = float(det_scores[index])
@@ -295,7 +311,7 @@ def save_json(faces_info, output_path):
 
         # import ipdb;ipdb.set_trace()
 
-    return 
+    return json_data
 
 def convert_to_serializable(obj):
     if isinstance(obj, np.ndarray):  # 如果是 NumPy 数组
@@ -312,118 +328,56 @@ def convert_to_serializable(obj):
         return obj
 
 
-# def main():
-#     start_time = time.time()
-#     args = parse_args()
-
-#     model_path = "/storage/hxy/ID/ckpts/consisID"
-#     device = "cuda"
-#     dtype = torch.bfloat16
-#     # face_helper_1, face_helper_2, face_clip_model, face_main_model, eva_transform_mean, eva_transform_std = prepare_face_models(model_path, device, dtype)
-    
-#     # face_helper_2.prepare(ctx_id=0)
-
-#     face_main_model = FaceAnalysis(
-#         name="antelopev2", root=os.path.join(model_path, "face_encoder"), providers=["CUDAExecutionProvider"]
-#     )
-#     face_main_model.prepare(ctx_id=0, det_size=(640, 640))
-
-#     face_helper_1 = FaceRestoreHelper(
-#         upscale_factor=1,
-#         face_size=512,
-#         crop_ratio=(1, 1),
-#         det_model="retinaface_resnet50",
-#         save_ext="png",
-#         device=device,
-#         model_rootpath=os.path.join(model_path, "face_encoder"),
-#     )
-#     face_helper_1.face_parse = None
-#     face_helper_1.face_parse = init_parsing_model(
-#         model_name="bisenet", device=device, model_rootpath=os.path.join(model_path, "face_encoder")
-#     )
-#     face_helper_1.face_det.eval()
-#     face_helper_1.face_parse.eval()
-#     face_helper_1.face_det.to(device)
-#     face_helper_1.face_parse.to(device)
-
-#     # with open("/storage/hxy/ID/data/dataset_check/scripts/test_dataset.json", "r") as f:
-#     #     json_data = json.load(f)
-
-
-#     # for key, value in json_data.items():
-
-#     # json_path = value['json_path']
-#     # root = value['root']
-
-#     json_path = args.input_video_json
-#     root = args.root
-
-#     with open(json_path, "r") as f:
-#         data = json.load(f)
-    
-#     count = 0
-
-#     for video in data:
-        
-#         count += 1
-
-#         cut = video['cut']
-#         path = root + '/' + video['path']
-#         crop = video['crop']
-#         file_name = os.path.basename(path)
-#         json_name = file_name.replace('.mp4', '.json')
-
-#         frames = extract_frames(path)
-
-#         if frames == None:
-#             continue
-
-#         faces_info = get_faces_info(face_main_model, frames, cut)
-        
-#         if len(faces_info) == 0 :
-#             faces_info = get_faces_info_RetinaFace(face_helper_1, frames, cut)
-
-#         if len(faces_info) == 0 :
-#             continue
-
-#         output_dir = args.output_json_folder + '/' + args.video_source
-
-#         os.makedirs(output_dir, exist_ok=True)
-
-#         output_path = os.path.join(output_dir, json_name)
-
-#         save_json(faces_info, output_path)
-
-#         print(f"process num : {count}, processing video: {args.video_source}")
-
 
 def process_video(video_data, model_path, device, output_json_folder, video_source, root):
+    # start_time = time.time()
+
     count = 0
     face_main_model = FaceAnalysis(
         name="antelopev2", root=os.path.join(model_path, "face_encoder"), providers=["CUDAExecutionProvider"]
     )
     face_main_model.prepare(ctx_id=0, det_size=(640, 640))
 
-    face_helper_1 = FaceRestoreHelper(
-        upscale_factor=1,
-        face_size=512,
-        crop_ratio=(1, 1),
-        det_model="retinaface_resnet50",
-        save_ext="png",
-        device=device,
-        model_rootpath=os.path.join(model_path, "face_encoder"),
+    face_helper_1 = FaceAnalysis(
+        name="buffalo_l", root=os.path.join(model_path, "face_encoder"), providers=["CUDAExecutionProvider"]
     )
-    face_helper_1.face_parse = None
-    face_helper_1.face_parse = init_parsing_model(
-        model_name="bisenet", device=device, model_rootpath=os.path.join(model_path, "face_encoder")
-    )
-    face_helper_1.face_det.eval()
-    face_helper_1.face_parse.eval()
-    face_helper_1.face_det.to(device)
-    face_helper_1.face_parse.to(device)
+    face_helper_1.prepare(ctx_id=0, det_size=(640, 640))
 
-    for video in video_data:
+    face_helper_2 = FaceAnalysis(
+        name="buffalo_m", root=os.path.join(model_path, "face_encoder"), providers=["CUDAExecutionProvider"]
+    )
+    face_helper_2.prepare(ctx_id=0, det_size=(640, 640))
+
+    face_helper_3 = FaceAnalysis(
+        name="buffalo_s", root=os.path.join(model_path, "face_encoder"), providers=["CUDAExecutionProvider"]
+    )
+    face_helper_3.prepare(ctx_id=0, det_size=(640, 640))
+
+    # face_helper_1 = FaceRestoreHelper(
+    #     upscale_factor=1,
+    #     face_size=512,
+    #     crop_ratio=(1, 1),
+    #     det_model="retinaface_resnet50",
+    #     save_ext="png",
+    #     device=device,
+    #     model_rootpath=os.path.join(model_path, "face_encoder"),
+    # )
+    # face_helper_1.face_parse = None
+    # face_helper_1.face_parse = init_parsing_model(
+    #     model_name="bisenet", device=device, model_rootpath=os.path.join(model_path, "face_encoder")
+    # )
+    # face_helper_1.face_det.eval()
+    # face_helper_1.face_parse.eval()
+    # face_helper_1.face_det.to(device)
+    # face_helper_1.face_parse.to(device)
+
+    for video in video_data[0]:
+
+        # import ipdb;ipdb.set_trace()
+
         count += 1
+
+
         cut = video['cut']
         path = os.path.join(root, video['path'])
         crop = video['crop']
@@ -441,21 +395,163 @@ def process_video(video_data, model_path, device, output_json_folder, video_sour
         if frames is None:
             continue
 
-        faces_info = get_faces_info(face_main_model, frames, cut)
+        faces_infos, origin_infos = get_faces_info(face_main_model, frames, cut)
 
-        if len(faces_info) == 0:
-            faces_info = get_faces_info_RetinaFace(face_helper_1, frames, cut)
+        if faces_infos is None:
+            faces_infos, origin_infos = get_faces_info(face_helper_1, frames, cut)
 
-        if len(faces_info) == 0:
+        if faces_infos is None:
+            faces_infos, origin_infos = get_faces_info(face_helper_2, frames, cut)
+
+        if faces_infos is None:
+            faces_infos, origin_infos = get_faces_info(face_helper_3, frames, cut)
+
+        if faces_infos is None:
             continue
+
+        # import ipdb;ipdb.set_trace()
+
+        Tracker = IDTracker(origin_infos)
+        id_list = Tracker.track_id()
+
 
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, json_name)
 
-        save_json(faces_info, output_path)
+        save_json(faces_infos, output_path, id_list)
         print(f"process num : {count}, processing video: {video_source}")
 
+        # end_time = time.time()  # 记录结束时间
+        # elapsed_time = end_time - start_time  # 计算运行时间
+        # print(f"main() 运行时间: {elapsed_time:.2f} 秒")
+
+
+def test_tracker(model_path, test_dir, output_json_dir, output_video_dir):
+
+    face_main_model = FaceAnalysis(
+        name="antelopev2", root=os.path.join(model_path, "face_encoder"), providers=["CUDAExecutionProvider"]
+    )
+    face_main_model.prepare(ctx_id=0, det_size=(640, 640))
+
+    face_helper_1 = FaceAnalysis(
+        name="buffalo_l", root=os.path.join(model_path, "face_encoder"), providers=["CUDAExecutionProvider"]
+    )
+    face_helper_1.prepare(ctx_id=0, det_size=(640, 640))
+
+    face_helper_2 = FaceAnalysis(
+        name="buffalo_m", root=os.path.join(model_path, "face_encoder"), providers=["CUDAExecutionProvider"]
+    )
+    face_helper_2.prepare(ctx_id=0, det_size=(640, 640))
+
+    face_helper_3 = FaceAnalysis(
+        name="buffalo_s", root=os.path.join(model_path, "face_encoder"), providers=["CUDAExecutionProvider"]
+    )
+
+    face_helper_3.prepare(ctx_id=0, det_size=(640, 640))
+
+    
+    mp4_files = []
+    for root, dirs, files in os.walk(test_dir):  # os.walk 会遍历文件夹及其子文件夹
+        for f in files:
+            if f.endswith('.mp4'):  # 判断文件后缀名是否为 .mp4
+                mp4_files.append(os.path.join(root, f))  # 获取完整路径
+
+    for video_file in mp4_files:
+        frames = extract_frames(video_file)
+        cut = [0, len(frames)]
+
+        if frames is None:
+            continue
+
+        faces_infos, origin_infos = get_faces_info(face_main_model, frames, cut)
+
+        if faces_infos is None:
+            faces_infos, origin_infos = get_faces_info(face_helper_1, frames, cut)
+
+        if faces_infos is None:
+            faces_infos, origin_infos = get_faces_info(face_helper_2, frames, cut)
+
+        if faces_infos is None:
+            faces_infos, origin_infos = get_faces_info(face_helper_3, frames, cut)
+
+        if faces_infos is None:
+            continue
+
+        file_name = os.path.basename(video_file)
+        json_name = file_name.replace('.mp4', '.json')
+
+        # import ipdb;ipdb.set_trace()
+
+        Tracker = IDTracker(origin_infos)
+        id_list = Tracker.track_id()
+        if id_list == None:
+            continue
+
+        os.makedirs(output_json_dir, exist_ok=True)
+        output_path = os.path.join(output_json_dir, json_name)
+
+
+
+        json_data = save_json(faces_infos, output_path, id_list)
+
+        output_path = os.path.join(output_video_dir, file_name)
+
+        draw_bbox_and_track_id(video_file, json_data, output_path)
+
+        
+def draw_bbox_and_track_id(video_path, json_data, output_path):
+    # 打开视频文件
+    cap = cv2.VideoCapture(video_path)
+    
+    # 获取视频的基本信息
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fps = cap.get(cv2.CAP_PROP_FPS)  # 获取视频帧率
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    # 创建视频写入器
+    out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+    
+    # 遍历每一帧
+    frame_count = 0
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # 获取当前帧的数据（假设 JSON 中的键是帧号）
+        frame_data = json_data.get(frame_count)
+        if frame_data:
+            for face in frame_data["face"]:
+                # 获取 bbox 和 track_id
+                track_id = face["track_id"]
+                box = face["box"]
+                x1, y1, x2, y2 = int(box["x1"]), int(box["y1"]), int(box["x2"]), int(box["y2"])
+
+                # 绘制 bbox（矩形框）
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)  # 绿色框
+
+                # 在 bbox 上方添加 track_id 文本
+                cv2.putText(frame, f"ID: {track_id}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+
+        # import ipdb;ipdb.set_trace()
+
+        
+
+        # 写入处理后的帧到输出视频
+        out.write(frame)
+
+        # 增加帧计数
+        frame_count += 1
+
+    # 释放资源
+    cap.release()
+    out.release()
+    print(f"处理完成，结果已保存到: {output_path}")
+
 def split_data(data, num_processes):
+
+    import ipdb;ipdb.set_trace()
     chunk_size = len(data) // num_processes
     return [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
 
@@ -475,8 +571,15 @@ def main():
         data = json.load(f)
 
     # 切分数据
-    num_processes = 3  # 根据机器性能选择适当的进程数
+    num_processes = args.threads  # 根据机器性能选择适当的进程数
     video_chunks = split_data(data, num_processes)
+
+    # test_dir = "/storage/hxy/ID/data/data_processor/verification"
+    # output_json_dir = "/storage/hxy/ID/data/data_processor/verification_jsons"
+    # output_video_dir = "/storage/hxy/ID/data/data_processor/verification_videos"
+
+    # test_tracker(model_path, test_dir, output_json_dir, output_video_dir)
+    # process_video(video_data=video_chunks, model_path=model_path, device=device, output_json_folder=args.output_json_folder, video_source=args.video_source, root=root)
 
     # 创建进程池，开始处理每个视频分块
     with multiprocessing.Pool(processes=num_processes) as pool:
