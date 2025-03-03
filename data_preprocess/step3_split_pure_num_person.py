@@ -8,6 +8,7 @@ from moviepy import VideoFileClip
 from tqdm import tqdm
 import math
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Processing Parameters")
     parser.add_argument('--input_video_folder', type=str, default='step2/videos', help='Directory containing input videos (default: input_videos)')

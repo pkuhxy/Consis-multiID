@@ -3,18 +3,19 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+
 import cv2
 import math
 from moviepy import VideoFileClip
 from tqdm import tqdm
-
+import decord
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Processing Parameters")
-    parser.add_argument('--input_video_folder', type=str, default='/remote-home1/ysh/1_Code/4_MultiID/1_test_videos', help='Directory containing input videos (default: input_videos)')
-    parser.add_argument('--input_json_folder', type=str, default='step1/bbox', help='Directory containing JSON files for bbox (default: step0/bbox)')
-    parser.add_argument('--output_video_folder', type=str, default='step2/videos', help='Directory to store output videos (default: step1/videos)')
-    parser.add_argument('--output_json_folder', type=str, default='step2/bbox', help='Directory to store output JSON files (default: step1/bbox)')
+    parser.add_argument('--input_video_folder', type=str, default='/storage/hxy/ID/data/data_processor/test/step2_test_videos', help='Directory containing input videos (default: input_videos)')
+    parser.add_argument('--input_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/test/step2_test', help='Directory containing JSON files for bbox (default: step0/bbox)')
+    parser.add_argument('--output_video_folder', type=str, default='/storage/hxy/ID/data/data_processor/test/step2_output/output_videos', help='Directory to store output videos (default: step1/videos)')
+    parser.add_argument('--output_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/test/step2_output/bbox_jsons', help='Directory to store output JSON files (default: step1/bbox)')
     parser.add_argument('--num_processes', type=int, default=16, help="Max number of parallel workers")
     args = parser.parse_args()
     return args
@@ -29,16 +30,12 @@ def is_face_large_enough_v2(face_boxes, threshold=0):
     return False
 
 
-def extract_useful_frames(json_file, video_file_path, min_valid_frames=81, tolerance=5):
-    with open(json_file, 'r') as f:
-        data = json.load(f)
+def extract_useful_frames(bbox_infos, video_file_path, min_valid_frames=81, tolerance=5):
+    data = bbox_infos
 
     useful_frames = []
     current_segment = []
     non_face_count = 0
-
-    cap = cv2.VideoCapture(video_file_path)
-    cap.release()
 
     for frame_num in range(len(data)):
         if str(frame_num) in data and data[str(frame_num)]['face']:
@@ -91,6 +88,33 @@ def extract_useful_frames(json_file, video_file_path, min_valid_frames=81, toler
 
     return useful_frames
 
+
+def extract_frames(video_path):
+    # 打开视频文件
+    try:
+        cap = decord.VideoReader(video_path)
+        frames = []
+
+        # 获取视频的总帧数
+        frame_count = len(cap)
+
+        if frame_count == 0:
+            print("Error: Video file is empty or cannot be read.")
+            return
+        
+        for frame_idx in range(frame_count):
+            # 读取指定索引的帧
+            frame = cap[frame_idx].asnumpy()  # 转换为 NumPy 数组
+            
+            frames.append(frame)
+
+        print(f"Total frames: {frame_count}")
+    
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return None
+
+    return frames
 
 def is_valid_frame(frame_data):
     for person in frame_data:
@@ -150,10 +174,10 @@ def process_and_save_video(input_video_path, merged_segments, input_json_data, o
         if not os.path.exists(output_video_file):
             video.subclipped(start_time, end_time).write_videofile(output_video_file, codec="libx264")
 
-        if not os.path.exists(output_bbox_file):
-            segment_json = {str(new_idx): input_json_data[str(original_idx)] for new_idx, original_idx in enumerate(segment)}
-            with open(output_bbox_file, 'w') as f:
-                json.dump(segment_json, f)
+        # if not os.path.exists(output_bbox_file):
+        #     segment_json = {str(new_idx): input_json_data[str(original_idx)] for new_idx, original_idx in enumerate(segment)}
+        #     with open(output_bbox_file, 'w') as f:
+        #         json.dump(segment_json, f)
 
     print("Processing completed for the necessary segments.")
 
@@ -225,28 +249,65 @@ def extract_valid_segments_from_filtered_data(filtered_pose_json_data, min_valid
 
     return valid_segments
 
+def save_frames_to_video(video_frames, start_frame, end_frame, output_video_file, fps=30):
+    """
+    将 start_frame 到 end_frame 之间的帧保存为视频。
+    
+    :param video_frames: 提取的所有视频帧 (列表，每个元素是一个帧图像)
+    :param start_frame: 起始帧索引
+    :param end_frame: 结束帧索引
+    :param output_video_file: 输出视频文件路径
+    :param fps: 输出视频的帧率，默认为 30
+    """
+    # 获取帧的尺寸
+    height, width, _ = video_frames[0].shape
+
+    # 定义视频编码器并创建 VideoWriter 对象
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 使用 MP4 编码格式
+    out = cv2.VideoWriter(output_video_file, fourcc, fps, (width, height))
+
+    # 遍历指定帧范围并写入视频
+    for i in range(start_frame, end_frame + 1):
+        out.write(video_frames[i])
+
+    out.release()  # 释放资源
+    print(f"视频已保存至: {output_video_file}")
+
 
 def process_video(input_video_path, input_json_path, output_video_folder, output_json_folder):
     video_name = os.path.basename(input_video_path).replace('.mp4', '')
-    bbox_json_file = os.path.join(input_json_path, f"{video_name}.json")
+    video_json_file = os.path.join(input_json_path, f"{video_name}.json")
+    useful_frames_json_file = os.path.join(output_json_folder, f"{video_name}_frames.json")
 
-    with open(bbox_json_file, 'r') as f:
+    with open(video_json_file, 'r') as f:
         json_data = json.load(f)
 
+    bbox_infos = json_data['bbox']
+    meta_data = json_data['metadata']
+
+
     # Step 1: Extract useful frames from bbox data
-    useful_frames_bbox = extract_useful_frames(bbox_json_file, input_video_path, tolerance=math.ceil(0.05*len(json_data)))
+    useful_frames_bbox = extract_useful_frames(bbox_infos, input_video_path, tolerance=math.ceil(0.05*len(json_data)))
 
-    # Step 2: Filter pose data based on the useful frames from bbox
-    filtered_pose_json_data = {str(idx): json_data[str(idx)]['pose'] for segment in useful_frames_bbox for idx in segment}
+    new_infos = []
 
-    # Step 3: Extract valid segments from filtered pose data
-    segments_pose = extract_valid_segments_from_filtered_data(filtered_pose_json_data, tolerance=math.ceil(0.025*len(json_data)))
+    for segment in useful_frames_bbox:
+        new_info = meta_data.copy()
+        meta_data['cut'] = segment
+        new_infos.append(new_info)
 
-    # Step 4: Merge bbox and pose segments
-    merged_segments = merge_segments(useful_frames_bbox, segments_pose)
+    return new_infos
 
-    # Step 5: Process and save merged segments
-    process_and_save_video(input_video_path, merged_segments, json_data, output_video_folder, output_json_folder)
+    # video_frames = extract_frames(input_video_path)
+    # video_frames_bgr = [cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) for frame in video_frames]
+
+    # for segment in useful_frames_bbox:
+    #     start_frame = segment[0]
+    #     end_frame = segment[-1]
+    #     output_video_file = os.path.join(output_video_folder, f"{video_name}_{start_frame}_{end_frame}.mp4")
+    #     save_frames_to_video(video_frames_bgr, start_frame, end_frame, output_video_file)
+
+
 
 
 def main():
@@ -257,15 +318,25 @@ def main():
 
     video_files = [f for f in os.listdir(args.input_video_folder) if f.endswith(".mp4")]
 
-    # process_video(os.path.join(args.input_video_folder, "/remote-home1/ysh/1_Code/4_MultiID/0_test_videos/3.mp4"), args.input_json_folder, args.output_video_folder, args.output_json_folder)
+    # input_video_path = '/storage/hxy/ID/data/data_processor/verification/3.mp4'
+    input_json_folder = args.input_json_folder
+    output_json_folder = args.output_json_folder
 
-    with ThreadPoolExecutor(max_workers=args.num_processes) as executor:
-        futures = [
-            executor.submit(process_video, os.path.join(args.input_video_folder, video_file), args.input_json_folder, args.output_video_folder, args.output_json_folder)
-            for video_file in video_files
-        ]
-        for future in tqdm(as_completed(futures), total=len(futures)):
-            future.result()
+
+    for video in video_files:
+
+        video = os.path.join(args.input_video_folder, video)
+        process_video(video, input_json_folder, args.output_video_folder, output_json_folder)
+
+
+
+    # with ThreadPoolExecutor(max_workers=args.num_processes) as executor:
+    #     futures = [
+    #         executor.submit(process_video, os.path.join(args.input_video_folder, video_file), args.input_json_folder, args.output_video_folder, args.output_json_folder)
+    #         for video_file in video_files
+    #     ]
+    #     for future in tqdm(as_completed(futures), total=len(futures)):
+    #         future.result()
 
 
 if __name__ == "__main__":

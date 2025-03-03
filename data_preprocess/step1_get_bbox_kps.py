@@ -17,10 +17,10 @@ from functools import partial
 
 from huggingface_hub import hf_hub_download
 from tqdm import tqdm
-from ultralytics import YOLO
-from util.download_weights_data import download_file
-from facexlib.parsing import init_parsing_model
-from facexlib.utils.face_restoration_helper import FaceRestoreHelper
+# from ultralytics import YOLO
+# from util.download_weights_data import download_file
+# from facexlib.parsing import init_parsing_model
+# from facexlib.utils.face_restoration_helper import FaceRestoreHelper
 from util.track_util import IDTracker
 
 # from util.prepare_models import prepare_face_models
@@ -37,11 +37,14 @@ from PIL import Image
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Process MP4 files with YOLO models.")
-    parser.add_argument('--input_video_json', type=str, default='/storage/hxy/ID/data/dataset_check/scripts/istock_1000.json', help='Path to the folder containing MP4 files.')
-    parser.add_argument('--output_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/step1', help='Directory for output files.')
-    parser.add_argument('--root', type=str, default='/storage/zhubin/meitu/istock', help='Directory for output files.')
+    parser.add_argument('--input_video_json', type=str, default='/storage/hxy/ID/data/data_processor/test/istockv1_extracted.json', help='Path to the folder containing MP4 files.')
+    parser.add_argument('--output_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/test/step2_output', help='Directory for output files.')
+    parser.add_argument('--root', type=str, default='/storage/hxy/ID/data/data_processor/test', help='Directory for output files.')
     parser.add_argument('--video_source', type=str, default='test', help='Directory for output files.')
     parser.add_argument('--threads', type=int, default=12, help='Directory for output files.')
+    parser.add_argument('--nums', type=int, default=12, help='Directory for output files.')
+    parser.add_argument('--part', type=int, default=12, help='Directory for output files.')
+    
 
     return parser.parse_args()
 
@@ -138,6 +141,8 @@ def get_faces_info(face_helper, images, cut):
 
         origin_infos[index] = faces_info
 
+        # import ipdb;ipdb.set_trace()
+
         bboxs = []
         kpss_x = []
         kpss_y = []
@@ -165,110 +170,14 @@ def get_faces_info(face_helper, images, cut):
         return faces_infos, origin_infos
     else:
         return None, None
-
-def get_faces_info_RetinaFace(face_helper, images, cut):
-    faces_infos = {}
-    origin_infos = {}
-    images = images[cut[0]:cut[1]]
-
-    for index, image in enumerate(images):
-        image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        faces_info = face_helper.face_det.detect_faces(image_bgr)
-
-        if len(faces_info) == 0:
-            # padding, try again
-            _h, _w = image_bgr.shape[:2]
-            _img, left_top_coord = pad_np_bgr_image(image_bgr)
-            faces_info = face_helper.face_det.detect_faces(image_bgr)
-            # if len(faces_info) == 0:
-            #     print("Warning: No face detected in the image. Continue processing...")
-
-            min_coord = np.array([0, 0])
-            max_coord = np.array([_w, _h])
-            sub_coord = np.array([left_top_coord[0], left_top_coord[1]])
-            for face in faces_info:
-                face.bbox = np.minimum(np.maximum(face.bbox.reshape(-1, 2) - sub_coord, min_coord), max_coord).reshape(4)
-                face.kps = face.kps - sub_coord
-        
-
-        
-
-        bboxs = []
-        kpss_x = []
-        kpss_y = []
-        det_scores = []
-
-        for face_info in faces_info:
-            bboxs.append([int(x) for x in face_info[0:4].tolist()])
-            det_scores.append(float(face_info[4]))
-            kpss_x.append([int(x) for x in face_info[5::2].tolist()])
-            kpss_y.append([int(x) for x in face_info[6::2].tolist()])
-
-        info_dict = {}
-
-        info_dict['bboxs'] = bboxs
-        info_dict['kpss_x'] = kpss_x
-        info_dict['kpss_y'] = kpss_y
-        info_dict['det_scores'] = det_scores
-
-        faces_infos[index] = info_dict
-
-    return faces_infos, origin_infos
     
-
-
-def check_id(faces_infos):
-
-    id_list = {}
-    embedding_map = {}
-    max_index = 0
-    max_faces = 0
-
-    for key, value in faces_infos.items():
-        if len(value) > max_faces :
-            max_faces = len(value)
-            max_index = key
-
-    for index, face in enumerate(faces_infos[max_index]):
-        embedding_map[index] = face.embedding
-
-    for key, value in faces_infos.items():
-        
-        frame_id = {}
-
-        for index, face in enumerate(value):
-            max_score = -1
-            max_id = -1
-            for id_index, id_embedding in embedding_map.items():
-                score = batch_cosine_similarity(face.embedding, id_embedding)
-                if score > max_score:
-                    max_score = score
-                    max_id = id_index
-            
-            frame_id[index] = max_id
-
-        id_list[key] = frame_id
-
-    return id_list
-
-
-def find_mp4_files(folder_path):
-    mp4_files = []
-    # 遍历文件夹
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            if file.lower().endswith('.mp4'):  # 检查文件扩展名是否为 .mp4
-                mp4_files.append(os.path.join(root, file))  # 获取绝对路径
-    return mp4_files
-
-
 def batch_cosine_similarity(embedding_image, embedding_frames, device="cuda"):
     embedding_image = torch.tensor(embedding_image).to(device)
     embedding_frames = torch.tensor(embedding_frames).to(device)
     return torch.nn.functional.cosine_similarity(embedding_image, embedding_frames, dim=-1).cpu().numpy()
 
 
-def save_json(faces_info, output_path, id_list):
+def save_json(faces_info, output_path, id_list, cut):
 
     json_data = {}
 
@@ -304,33 +213,15 @@ def save_json(faces_info, output_path, id_list):
             face['face'].append(id_value)
 
 
-        json_data[frame] = face
+        json_data[frame+cut[0]] = face
 
     with open(output_path, 'w') as json_file:
         json.dump(json_data, json_file, indent=4)
 
-        # import ipdb;ipdb.set_trace()
-
     return json_data
-
-def convert_to_serializable(obj):
-    if isinstance(obj, np.ndarray):  # 如果是 NumPy 数组
-        return obj.astype(float).tolist()  # 转换为 float 类型，再转换为列表
-    elif isinstance(obj, (np.float32, np.float64)):  # 如果是 float32 或 float64
-        return float(obj)  # 转换为 Python 的 float 类型
-    elif isinstance(obj, (np.int32, np.int64)):  # 如果是 int32 或 int64
-        return int(obj)  # 转换为 Python 的 int 类型
-    elif isinstance(obj, dict):  # 如果是字典
-        return {key: convert_to_serializable(value) for key, value in obj.items()}
-    elif isinstance(obj, list):  # 如果是列表
-        return [convert_to_serializable(item) for item in obj]
-    else:  # 其他类型（如字符串、整数等）保持不变
-        return obj
-
 
 
 def process_video(video_data, model_path, device, output_json_folder, video_source, root):
-    # start_time = time.time()
 
     count = 0
     face_main_model = FaceAnalysis(
@@ -353,30 +244,7 @@ def process_video(video_data, model_path, device, output_json_folder, video_sour
     )
     face_helper_3.prepare(ctx_id=0, det_size=(640, 640))
 
-    # face_helper_1 = FaceRestoreHelper(
-    #     upscale_factor=1,
-    #     face_size=512,
-    #     crop_ratio=(1, 1),
-    #     det_model="retinaface_resnet50",
-    #     save_ext="png",
-    #     device=device,
-    #     model_rootpath=os.path.join(model_path, "face_encoder"),
-    # )
-    # face_helper_1.face_parse = None
-    # face_helper_1.face_parse = init_parsing_model(
-    #     model_name="bisenet", device=device, model_rootpath=os.path.join(model_path, "face_encoder")
-    # )
-    # face_helper_1.face_det.eval()
-    # face_helper_1.face_parse.eval()
-    # face_helper_1.face_det.to(device)
-    # face_helper_1.face_parse.to(device)
-
-    for video in video_data[0]:
-
-        # import ipdb;ipdb.set_trace()
-
-        count += 1
-
+    for video in video_data:
 
         cut = video['cut']
         path = os.path.join(root, video['path'])
@@ -418,7 +286,7 @@ def process_video(video_data, model_path, device, output_json_folder, video_sour
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, json_name)
 
-        save_json(faces_infos, output_path, id_list)
+        save_json(faces_infos, output_path, id_list, cut)
         print(f"process num : {count}, processing video: {video_source}")
 
         # end_time = time.time()  # 记录结束时间
@@ -490,8 +358,6 @@ def test_tracker(model_path, test_dir, output_json_dir, output_video_dir):
         os.makedirs(output_json_dir, exist_ok=True)
         output_path = os.path.join(output_json_dir, json_name)
 
-
-
         json_data = save_json(faces_infos, output_path, id_list)
 
         output_path = os.path.join(output_video_dir, file_name)
@@ -551,9 +417,24 @@ def draw_bbox_and_track_id(video_path, json_data, output_path):
 
 def split_data(data, num_processes):
 
-    import ipdb;ipdb.set_trace()
+    # import ipdb;ipdb.set_trace()
     chunk_size = len(data) // num_processes
     return [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+
+def split_list(data, nums, part):
+    """将列表 data 切分成 nums 份，返回第 part 份"""
+    # 计算每一份的大小
+    size = len(data)
+    part_size = size // nums
+    remainder = size % nums  # 剩余部分
+
+    # 计算第 part 份的开始和结束索引
+    start = part * part_size + min(part, remainder)
+    end = start + part_size + (1 if part < remainder else 0)
+
+    # 返回切分的部分
+    return data[start:end]
+
 
 def main():
     start_time = time.time()
@@ -570,6 +451,8 @@ def main():
     with open(json_path, "r") as f:
         data = json.load(f)
 
+    data = split_list(data, args.nums, args.part)
+
     # 切分数据
     num_processes = args.threads  # 根据机器性能选择适当的进程数
     video_chunks = split_data(data, num_processes)
@@ -579,7 +462,7 @@ def main():
     # output_video_dir = "/storage/hxy/ID/data/data_processor/verification_videos"
 
     # test_tracker(model_path, test_dir, output_json_dir, output_video_dir)
-    # process_video(video_data=video_chunks, model_path=model_path, device=device, output_json_folder=args.output_json_folder, video_source=args.video_source, root=root)
+    # process_video(video_data=data, model_path=model_path, device=device, output_json_folder=args.output_json_folder, video_source=args.video_source, root=root)
 
     # 创建进程池，开始处理每个视频分块
     with multiprocessing.Pool(processes=num_processes) as pool:

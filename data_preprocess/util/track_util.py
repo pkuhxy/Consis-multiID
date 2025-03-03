@@ -17,10 +17,10 @@ from functools import partial
 
 from huggingface_hub import hf_hub_download
 from tqdm import tqdm
-from ultralytics import YOLO
-from util.download_weights_data import download_file
-from facexlib.parsing import init_parsing_model
-from facexlib.utils.face_restoration_helper import FaceRestoreHelper
+# from ultralytics import YOLO
+# from util.download_weights_data import download_file
+# from facexlib.parsing import init_parsing_model
+# from facexlib.utils.face_restoration_helper import FaceRestoreHelper
 
 
 # from util.prepare_models import prepare_face_models
