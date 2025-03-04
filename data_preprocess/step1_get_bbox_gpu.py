@@ -316,16 +316,26 @@ def test_process_videos(model_path, input_video_dir, output_json_dir, device_id)
 
     free_memory()
 
-    video_paths = [f for f in os.listdir(input_video_dir) if f.endswith(".json")]
+    video_paths = [f for f in os.listdir(input_video_dir) if f.endswith(".mp4")]
+
+    # import ipdb;ipdb.set_trace()
 
     for video in tqdm(video_paths, desc="Processing videos", unit="video"):
         video_path = os.path.join(input_video_dir, video)
 
-        vr = VideoReader(video_path, ctx=cpu(0))
-        frame_list = np.arange(0, len(vr))
-        frames = vr.get_batch(frame_list).asnumpy()        
-        del vr
-        free_memory()
+        # video_path = ''
+
+        try:
+            vr = VideoReader(video_path)
+            frame_list = np.arange(0, len(vr))
+            frames = vr.get_batch(frame_list).asnumpy()        
+            del vr
+            free_memory()
+        except Exception as e:
+            print(e)
+            continue
+
+        # import ipdb;ipdb.set_trace()
 
         if frames is None:
             continue
@@ -343,6 +353,17 @@ def test_process_videos(model_path, input_video_dir, output_json_dir, device_id)
 
         if faces_infos is None:
             continue        
+
+        Tracker = IDTracker(origin_infos)
+        id_list = Tracker.track_id()
+
+        # import ipdb;ipdb.set_trace()
+        output_json_dir = '/storage/hxy/ID/data/data_processor/verification_jsons/2'
+
+        metadata = []
+        output_path = os.path.join(output_json_dir, video.replace(".mp4", ".json"))
+
+        save_json(faces_infos, output_path, id_list, frame_list, metadata)        
 
 
 def process_video(video_metadatas, model_path, output_json_folder, video_source, video_root, device_id):
@@ -373,17 +394,15 @@ def process_video(video_metadatas, model_path, output_json_folder, video_source,
         if os.path.exists(output_path):
             print(f"Skipping existing file: {output_name}")
             continue
-
-        # video_path = '/storage/hxy/ID/data/data_processor/test/wrong_examples/gm621059908-108728121_part2.mp4'
-        # output_path = '/storage/hxy/ID/data/data_processor/test/wrong_examples/frames_gm621059908/gm621059908-108728121_part2_0-97.json'
-
-        # cut = [0, 97]
-
-        vr = VideoReader(video_path, ctx=cpu(0))
-        frame_list = np.arange(cut[0], cut[1])
-        frames = vr.get_batch(frame_list).asnumpy()
-        del vr
-        free_memory()
+        try:
+            vr = VideoReader(video_path)
+            frame_list = np.arange(cut[0], cut[1])
+            frames = vr.get_batch(frame_list).asnumpy()
+            del vr
+            free_memory()
+        except Exception as e:
+            print(e)
+            continue
 
         if frames is None:
             continue
@@ -408,6 +427,8 @@ def process_video(video_metadatas, model_path, output_json_folder, video_source,
         # import ipdb;ipdb.set_trace()
 
         save_json(faces_infos, output_path, id_list, frame_list, metadata)
+
+        free_memory()
 
 
 def split_list(data, nums, part):
@@ -445,6 +466,11 @@ if __name__ == "__main__":
     model_path = args.model_path
     json_path = args.input_video_json
     video_root = args.video_root
+
+
+    #test video dir
+    # test_input_video_path = '/storage/hxy/ID/data/data_processor/verification'
+    # test_process_videos(model_path, test_input_video_path, args.output_json_folder, args.device_id)
 
     with open(json_path, "r") as f:
         data = json.load(f)
