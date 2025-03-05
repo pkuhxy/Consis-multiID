@@ -22,7 +22,7 @@ import numpy as np
 from PIL import Image, ImageOps
 from tqdm import tqdm
 from insightface.app import FaceAnalysis
-
+from multiprocessing import Pool
 
 def free_memory():
     """
@@ -445,6 +445,29 @@ def split_list(data, nums, part):
     # 返回切分的部分
     return data[start:end]
 
+
+def process_metadata(metadata, output_dir):
+    cut = metadata['cut']
+    output_name = os.path.basename(metadata['path']).replace(".mp4", f"_step1-{cut[0]}-{cut[1]}.json")
+    output_path = os.path.join(output_dir, output_name)
+
+    if os.path.exists(output_path):
+        print(f"Skipping existing file: {output_name}")
+        return None  # 返回None表示该任务已跳过
+
+    return metadata  # 返回metadata供后续使用
+
+# 主函数，使用多进程并发执行
+def resume_data(data, output_dir, num_processes=4):
+    with Pool(processes=num_processes) as pool:
+        # 使用map将任务分发给多个进程
+        result = pool.starmap(process_metadata, [(metadata, output_dir) for metadata in data])
+
+    # 筛选出有效的metadata数据（排除掉跳过的部分）
+    resume_data = [metadata for metadata in result if metadata is not None]
+
+    return resume_data
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Process MP4 files with YOLO models.")
     parser.add_argument('--model_path', type=str, default='/storage/hxy/ID/ckpts/consisID')
@@ -466,7 +489,7 @@ if __name__ == "__main__":
     model_path = args.model_path
     json_path = args.input_video_json
     video_root = args.video_root
-
+    output_dir = args.output_json_folder + '/' + args.video_source
 
     #test video dir
     # test_input_video_path = '/storage/hxy/ID/data/data_processor/verification'
@@ -474,6 +497,8 @@ if __name__ == "__main__":
 
     with open(json_path, "r") as f:
         data = json.load(f)
+
+    data = resume_data(data, output_dir, 32)
 
     data = split_list(data, args.split_nums, args.part)
 

@@ -123,10 +123,10 @@ def draw_bbox_and_track_id(video_path, json_data, output_path, cut):
 
 if __name__ == "__main__":
 
-    input_jsons_dir = '/storage/hxy/ID/data/data_processor/verification_jsons/2'
+    input_jsons_dir = '/storage/hxy/ID/data/data_processor/sample/istockv4/jsons'
     input_videos_dir = '/storage/hxy/ID/data/data_processor/verification'
-    video_root = "/storage/hxy/ID/data/data_processor/test"
-    output_dir = '/storage/hxy/ID/data/data_processor/verification/2'
+    video_root = "/storage/dataset/istock"
+    output_dir = '/storage/hxy/ID/data/data_processor/sample/istockv4/videos'
     
 
     jsons_files = [f for f in os.listdir(input_jsons_dir) if f.endswith(".json")]
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         metadata = json_data['metadata']
         bbox = json_data['bbox']
 
-        # video_path = video_root + '/' + metadata['path']
+        video_path = video_root + '/' + metadata['path']
         # video_path = '/storage/hxy/ID/data/data_processor/test/step2_test_videos/gm1464771122-497372401_part1.mp4'
         output_path = os.path.join(output_dir, json_file.replace('.json', '.mp4'))
 
@@ -164,9 +164,11 @@ if __name__ == "__main__":
         # import ipdb;ipdb.set_trace()
 
         #test video dir
-        video_path = os.path.join(input_videos_dir, json_file.replace('.json', '.mp4'))
-        metadata = {}
-        metadata['cut'] = [0, len(bbox)]
+        # video_path = os.path.join(input_videos_dir, json_file.replace('.json', '.mp4'))
+        # metadata = {}
+        # metadata['cut'] = [0, len(bbox)]
+
+        # import ipdb;ipdb.set_trace()
 
         draw_bbox_and_track_id(video_path, bbox, output_path, metadata['cut'])
 
