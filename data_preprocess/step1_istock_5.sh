@@ -51,9 +51,9 @@
 #     --input_video_json /storage/hxy/ID/data/dataset_check/filter_jsons/sucai/istock_v4_chunk_40.json \
 #     --output_json_folder /storage/hxy/ID/data/data_processor/track &
 
-ROOT=/storage/dataset/istock/
-VIDEO_SOURCE=istock_v4
-INPUT_VIDEO_JSON=/storage/hxy/ID/data/dataset_check/filter_jsons/istock_v4_984827.json
+ROOT=/storage/zhubin/meitu/istock
+VIDEO_SOURCE=istock_v1
+INPUT_VIDEO_JSON=/storage/hxy/ID/data/dataset_check/filter_jsons/istock_v1_304948.json
 OUTPUT_JSON_FOLDER=/storage/hxy/ID/data/data_processor/step1_jsons
 NUMS=480
 MODEL_PATH=/storage/hxy/ID/ckpts/consisID

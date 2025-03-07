@@ -4,19 +4,22 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-import cv2
 import math
-from moviepy import VideoFileClip
 from tqdm import tqdm
-import decord
+import multiprocessing
+
+
+
+
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Processing Parameters")
     parser.add_argument('--input_video_folder', type=str, default='/storage/hxy/ID/data/data_processor/verification_jsons/2', help='Directory containing input videos (default: input_videos)')
-    parser.add_argument('--input_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/verification_jsons/2', help='Directory containing JSON files for bbox (default: step0/bbox)')
+    parser.add_argument('--input_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/step1_jsons/istock_v1', help='Directory containing JSON files for bbox (default: step0/bbox)')
     parser.add_argument('--output_video_folder', type=str, default='/storage/hxy/ID/data/data_processor/test/step2_output/output_videos', help='Directory to store output videos (default: step1/videos)')
-    parser.add_argument('--output_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/sample/istockv4/step2_jsons', help='Directory to store output JSON files (default: step1/bbox)')
-    parser.add_argument('--num_processes', type=int, default=16, help="Max number of parallel workers")
+    parser.add_argument('--output_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/step2/step2_jsons/istockv1', help='Directory to store output JSON files (default: step1/bbox)')
+    parser.add_argument('--num_processes', type=int, default=32, help="Max number of parallel workers")
     args = parser.parse_args()
     return args
 
@@ -28,6 +31,7 @@ def is_face_large_enough_v2(face_boxes, threshold=0):
         if width > threshold and height > threshold:
             return True
     return False
+
 
 
 def extract_useful_frames(bbox_infos, min_valid_frames=81, tolerance=5):
@@ -95,6 +99,11 @@ def process_video(input_json_path, output_json_folder):
     with open(input_json_path, 'r') as f:
         json_data = json.load(f)
 
+    # import ipdb;ipdb.set_trace()
+
+    if not isinstance(json_data, dict):
+        return 
+
     bbox_infos = json_data['bbox']
     meta_data = json_data['metadata']
 
@@ -111,29 +120,45 @@ def process_video(input_json_path, output_json_folder):
         output_json_name = json_name.replace('.json', f'_step2_{segment[0]}-{segment[-1]+1}.json')
         output_json_path = os.path.join(output_json_folder, output_json_name)
 
+        # import ipdb;ipdb.set_trace()
 
         with open(output_json_path, 'w') as f:
             json.dump(new_json_data, f, indent=4)
+            print(f"{output_json_path} saved successfully.")
 
 
-
-
+def process_files(json_file, input_json_folder, output_json_folder):
+    # 获取每个json文件的路径
+    json_path = os.path.join(input_json_folder, json_file)
+    # 调用处理函数
+    try:
+        process_video(json_path, output_json_folder)
+    except Exception as e:
+        print(f"Error processing {json_file}: {e}")
 
 def main():
     args = parse_args()
 
+    # 创建输出文件夹
     os.makedirs(args.output_video_folder, exist_ok=True)
     os.makedirs(args.output_json_folder, exist_ok=True)
 
+    # 获取所有的json文件
     json_files = [f for f in os.listdir(args.input_json_folder) if f.endswith(".json")]
 
+    # 使用多进程处理每个文件
     input_json_folder = args.input_json_folder
     output_json_folder = args.output_json_folder
 
+    #test
+    # for json_file in json_files:
+    #     process_files(json_file, input_json_folder, output_json_folder)
 
-    for json_file in json_files:
-        json_path = os.path.join(input_json_folder, json_file)
-        process_video(json_path, output_json_folder)
+    # 设置进度条
+    with multiprocessing.Pool(processes=args.num_processes) as pool:
+        # 使用tqdm包装多进程迭代器来显示进度条
+        list(tqdm(pool.starmap(process_files, [(json_file, input_json_folder, output_json_folder) for json_file in json_files]), total=len(json_files)))
+
 
 
 

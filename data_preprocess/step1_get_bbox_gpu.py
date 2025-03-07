@@ -98,6 +98,7 @@ def save_json(faces_info, output_path, id_list, frame_list, metadata):
 
     with open(output_path, 'w') as json_file:
         json.dump(json_data, json_file, indent=4)
+        print(f"Json file saved to {output_path}")
 
     return json_data
 
@@ -198,7 +199,7 @@ class IDTracker:
             current_embeds = {}
 
             for id_index, face in enumerate(self.faces_infos[index]):
-                if face.det_score > 0.6:
+                if face.det_score > 0.65:
                     face_id = self.get_id(face.embedding, self.embeds_forward)
                     if face_id is None:
                         face_id = self.max_num + 1
@@ -225,7 +226,7 @@ class IDTracker:
             self.id_list[index] = {}
 
             for id_index, face in enumerate(self.faces_infos[index]):
-                if face.det_score > 0.58:
+                if face.det_score > 0.65:
                     face_id = self.get_id(face.embedding, self.embeds_backward)
                     if face_id is None:
                         face_id = self.max_num + 1
@@ -358,7 +359,7 @@ def test_process_videos(model_path, input_video_dir, output_json_dir, device_id)
         id_list = Tracker.track_id()
 
         # import ipdb;ipdb.set_trace()
-        output_json_dir = '/storage/hxy/ID/data/data_processor/verification_jsons/2'
+        # output_json_dir = '/storage/hxy/ID/data/data_processor/verification_jsons/2'
 
         metadata = []
         output_path = os.path.join(output_json_dir, video.replace(".mp4", ".json"))
@@ -380,6 +381,9 @@ def process_video(video_metadatas, model_path, output_json_folder, video_source,
     face_helper_3.prepare(ctx_id=device_id, det_size=(640, 640))
 
     free_memory()
+
+    output_paths = []
+
     for metadata in tqdm(video_metadatas, desc="Processing videos", unit="video"):
         cut = metadata['cut']
         crop = metadata['crop']
@@ -388,6 +392,7 @@ def process_video(video_metadatas, model_path, output_json_folder, video_source,
         output_dir = os.path.join(output_json_folder, video_source)
         output_name = os.path.basename(metadata['path']).replace(".mp4", f"_step1-{cut[0]}-{cut[1]}.json")
         output_path = os.path.join(output_dir, output_name)
+        output_paths.append(output_path)
 
         os.makedirs(output_dir, exist_ok=True)
 
@@ -419,6 +424,10 @@ def process_video(video_metadatas, model_path, output_json_folder, video_source,
             faces_infos, origin_infos = get_faces_info(face_helper_3, frames)
 
         if faces_infos is None:
+            flag = 'None'
+            with open(output_path, 'w') as json_file:
+                json.dump(flag, json_file, indent=4)
+            print(f"Json file saved to {output_path}")
             continue
 
         Tracker = IDTracker(origin_infos)
@@ -429,6 +438,10 @@ def process_video(video_metadatas, model_path, output_json_folder, video_source,
         save_json(faces_infos, output_path, id_list, frame_list, metadata)
 
         free_memory()
+
+    save_jsons_path = f"/storage/hxy/ID/data/data_processor/test/check_save_jsons/save_jsons/{device_id}.json"
+    with open(save_jsons_path, "w") as f:
+        json.dump(output_paths, f, indent=4)
 
 
 def split_list(data, nums, part):
@@ -441,6 +454,12 @@ def split_list(data, nums, part):
     # 计算第 part 份的开始和结束索引
     start = part * part_size + min(part, remainder)
     end = start + part_size + (1 if part < remainder else 0)
+
+    #test index
+    index = [start,end]
+    index_json_path = f"/storage/hxy/ID/data/data_processor/test/check_save_jsons/index_jsons/{part}.json"
+    with open(index_json_path, "w") as f:
+        json.dump(index, f, indent=4)
 
     # 返回切分的部分
     return data[start:end]
@@ -500,8 +519,22 @@ if __name__ == "__main__":
 
     data = resume_data(data, output_dir, 32)
 
-    data = split_list(data, args.split_nums, args.part)
+    # test
+    skip_json_path = f"/storage/hxy/ID/data/data_processor/test/check_save_jsons/skip_jsons/{args.part}.json"
+    paths = [item['path'] for item in data]
+    with open(skip_json_path, "w") as f:
+        json.dump(paths, f, indent=4)
+
+    split_data = split_list(data, args.split_nums, args.part)
+
+    #test
+    split_json_path = f"/storage/hxy/ID/data/data_processor/test/check_save_jsons/split_jsons/{args.part}.json"
+    paths = [{item['path']:item['cut']} for item in split_data]
+    with open(split_json_path, "w") as f:
+        json.dump(paths, f, indent=4)
+
+    # import ipdb;ipdb.set_trace()
 
     start_time = time.time()
-    process_video(video_metadatas=data, model_path=model_path, output_json_folder=args.output_json_folder, video_source=args.video_source, video_root=video_root, device_id=args.device_id)
+    process_video(video_metadatas=split_data, model_path=model_path, output_json_folder=args.output_json_folder, video_source=args.video_source, video_root=video_root, device_id=args.device_id)
     print("Processing completed in", time.time() - start_time, "seconds.")
