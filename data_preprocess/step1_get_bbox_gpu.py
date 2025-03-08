@@ -319,12 +319,8 @@ def test_process_videos(model_path, input_video_dir, output_json_dir, device_id)
 
     video_paths = [f for f in os.listdir(input_video_dir) if f.endswith(".mp4")]
 
-    # import ipdb;ipdb.set_trace()
-
     for video in tqdm(video_paths, desc="Processing videos", unit="video"):
         video_path = os.path.join(input_video_dir, video)
-
-        # video_path = ''
 
         try:
             vr = VideoReader(video_path)
@@ -335,8 +331,6 @@ def test_process_videos(model_path, input_video_dir, output_json_dir, device_id)
         except Exception as e:
             print(e)
             continue
-
-        # import ipdb;ipdb.set_trace()
 
         if frames is None:
             continue
@@ -357,9 +351,6 @@ def test_process_videos(model_path, input_video_dir, output_json_dir, device_id)
 
         Tracker = IDTracker(origin_infos)
         id_list = Tracker.track_id()
-
-        # import ipdb;ipdb.set_trace()
-        # output_json_dir = '/storage/hxy/ID/data/data_processor/verification_jsons/2'
 
         metadata = []
         output_path = os.path.join(output_json_dir, video.replace(".mp4", ".json"))
@@ -433,8 +424,6 @@ def process_video(video_metadatas, model_path, output_json_folder, video_source,
         Tracker = IDTracker(origin_infos)
         id_list = Tracker.track_id()
 
-        # import ipdb;ipdb.set_trace()
-
         save_json(faces_infos, output_path, id_list, frame_list, metadata)
 
         free_memory()
@@ -445,23 +434,18 @@ def process_video(video_metadatas, model_path, output_json_folder, video_source,
 
 
 def split_list(data, nums, part):
-    """将列表 data 切分成 nums 份，返回第 part 份"""
-    # 计算每一份的大小
     size = len(data)
     part_size = size // nums
     remainder = size % nums  # 剩余部分
 
-    # 计算第 part 份的开始和结束索引
     start = part * part_size + min(part, remainder)
     end = start + part_size + (1 if part < remainder else 0)
 
-    #test index
     index = [start,end]
     index_json_path = f"/storage/hxy/ID/data/data_processor/test/check_save_jsons/index_jsons/{part}.json"
     with open(index_json_path, "w") as f:
         json.dump(index, f, indent=4)
 
-    # 返回切分的部分
     return data[start:end]
 
 
@@ -472,20 +456,19 @@ def process_metadata(metadata, output_dir):
 
     if os.path.exists(output_path):
         print(f"Skipping existing file: {output_name}")
-        return None  # 返回None表示该任务已跳过
+        return None 
 
-    return metadata  # 返回metadata供后续使用
+    return metadata 
 
-# 主函数，使用多进程并发执行
+
 def resume_data(data, output_dir, num_processes=4):
     with Pool(processes=num_processes) as pool:
-        # 使用map将任务分发给多个进程
         result = pool.starmap(process_metadata, [(metadata, output_dir) for metadata in data])
 
-    # 筛选出有效的metadata数据（排除掉跳过的部分）
     resume_data = [metadata for metadata in result if metadata is not None]
 
     return resume_data
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Process MP4 files with YOLO models.")
@@ -498,7 +481,6 @@ def parse_args():
     parser.add_argument('--part', type=int, default=0, help='Directory for output files.')
     parser.add_argument('--split_nums', type=int, default=8, help='Directory for output files.')
 
-
     return parser.parse_args()
 
 
@@ -510,30 +492,12 @@ if __name__ == "__main__":
     video_root = args.video_root
     output_dir = args.output_json_folder + '/' + args.video_source
 
-    #test video dir
-    # test_input_video_path = '/storage/hxy/ID/data/data_processor/verification'
-    # test_process_videos(model_path, test_input_video_path, args.output_json_folder, args.device_id)
-
     with open(json_path, "r") as f:
         data = json.load(f)
 
     data = resume_data(data, output_dir, 32)
 
-    # test
-    skip_json_path = f"/storage/hxy/ID/data/data_processor/test/check_save_jsons/skip_jsons/{args.part}.json"
-    paths = [item['path'] for item in data]
-    with open(skip_json_path, "w") as f:
-        json.dump(paths, f, indent=4)
-
     split_data = split_list(data, args.split_nums, args.part)
-
-    #test
-    split_json_path = f"/storage/hxy/ID/data/data_processor/test/check_save_jsons/split_jsons/{args.part}.json"
-    paths = [{item['path']:item['cut']} for item in split_data]
-    with open(split_json_path, "w") as f:
-        json.dump(paths, f, indent=4)
-
-    # import ipdb;ipdb.set_trace()
 
     start_time = time.time()
     process_video(video_metadatas=split_data, model_path=model_path, output_json_folder=args.output_json_folder, video_source=args.video_source, video_root=video_root, device_id=args.device_id)
