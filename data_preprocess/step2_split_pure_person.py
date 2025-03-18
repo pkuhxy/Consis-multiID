@@ -9,9 +9,9 @@ import multiprocessing
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Processing Parameters")
-    parser.add_argument('--input_video_folder', type=str, default='/storage/hxy/ID/data/data_processor/verification_jsons/2', help='Directory containing input videos (default: input_videos)')
+    # parser.add_argument('--input_video_folder', type=str, default='/storage/hxy/ID/data/data_processor/verification_jsons/2', help='Directory containing input videos (default: input_videos)')
     parser.add_argument('--input_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/step1_jsons/istock_v1', help='Directory containing JSON files for bbox (default: step0/bbox)')
-    parser.add_argument('--output_video_folder', type=str, default='/storage/hxy/ID/data/data_processor/test/step2_output/output_videos', help='Directory to store output videos (default: step1/videos)')
+    # parser.add_argument('--output_video_folder', type=str, default='/storage/hxy/ID/data/data_processor/test/step2_output/output_videos', help='Directory to store output videos (default: step1/videos)')
     parser.add_argument('--output_json_folder', type=str, default='/storage/hxy/ID/data/data_processor/step2/step2_jsons/istockv1', help='Directory to store output JSON files (default: step1/bbox)')
     parser.add_argument('--num_processes', type=int, default=32, help="Max number of parallel workers")
     args = parser.parse_args()
@@ -128,13 +128,15 @@ def process_files(json_file, input_json_folder, output_json_folder):
 def main():
     args = parse_args()
 
-    os.makedirs(args.output_video_folder, exist_ok=True)
+    # os.makedirs(args.output_video_folder, exist_ok=True)
     os.makedirs(args.output_json_folder, exist_ok=True)
 
     json_files = [f for f in os.listdir(args.input_json_folder) if f.endswith(".json")]
 
     input_json_folder = args.input_json_folder
     output_json_folder = args.output_json_folder
+
+    os.makedirs(output_json_folder, exist_ok=True)
 
     with multiprocessing.Pool(processes=args.num_processes) as pool:
         list(tqdm(pool.starmap(process_files, [(json_file, input_json_folder, output_json_folder) for json_file in json_files]), total=len(json_files)))
